@@ -1,6 +1,7 @@
 #if defined(__EMSCRIPTEN__)
 #include "web_race_warm.h"
 #include "web_region.h"
+#include "region/guest_region.h"
 
 #include "memory.h"
 
@@ -25,19 +26,19 @@ EM_JS(void, mkw_web_prefetch_paths, (const char* json), {
 namespace WebRaceWarm {
 namespace {
 
-// Guest addresses in the supported RMCP01 build, read from ArchiveMgr::LoadKartArchive (0x80540E3C)
-// and RaceScene::OnEnter (0x80553C50).
-constexpr uint32_t kRacedataPointer = 0x809BD728u;  // pointer to the race scenario
+// Guest globals, as read by ArchiveMgr::LoadKartArchive(playerId) and RaceScene::OnEnter. They are
+// PAL identities (region/guest_region.h); projects/mkwii-ntsc-u/data_addresses.txt has the evidence.
+constexpr uint32_t kRacedataPointer = MKW_GADDR(809BD728);  // pointer to the race scenario
 constexpr uint32_t kPlayerStride = 240;
 constexpr uint32_t kPlayerVehicle = 48;
 constexpr uint32_t kPlayerCharacter = 52;
 constexpr uint32_t kPlayerCountOffset = 36;         // u8
 constexpr uint32_t kPlayerTeam = 244;
 constexpr uint32_t kRaceMode = 2928;
-constexpr uint32_t kVehicleNames = 0x808B3B50u;     // 36 pointers, indexed by vehicle
-constexpr uint32_t kDriverNames = 0x808B3A90u;      // 48 pointers, indexed by character
-constexpr uint32_t kKindNames = 0x808B3BE0u;        // 3 pointers (kart / bike)
-constexpr uint32_t kSuffixNames = 0x808B3BECu;      // 3 pointers ("", split-screen)
+constexpr uint32_t kVehicleNames = MKW_GADDR(808B3B50);  // 36 pointers, indexed by vehicle
+constexpr uint32_t kDriverNames = MKW_GADDR(808B3A90);   // 48 pointers, indexed by character
+constexpr uint32_t kKindNames = MKW_GADDR(808B3BE0);     // 3 pointers ("_red", "_blue", "")
+constexpr uint32_t kSuffixNames = MKW_GADDR(808B3BEC);   // 3 pointers ("", split-screen)
 constexpr uint32_t kVehicles = 36, kDrivers = 48, kMaxPlayers = 12;
 
 // RaceConfig holds the race in progress at +0x20 and the one being set up in the menus at +0xC10;
@@ -113,7 +114,7 @@ void OnDiscRead(const std::string& path) {
             summary += " " + vehicleName + "/" + driverName;
             // The vehicle names already end in "_kart"/"_bike". The kind table is "_red", "_blue",
             // "": the game uses "" (index 2) except in the team race modes, where it uses the
-            // player's team (RaceScene::OnEnter, 0x80553C50). The suffix is the first entry ("" unless
+            // player's team (RaceScene::OnEnter). The suffix is the first entry ("" unless
             // the screen is split). Names that are not on the disc are ignored by the fetcher.
             uint32_t kindIndex = 2;
             if (teamMode) kindIndex = Memory::Read32(entry + kPlayerTeam);

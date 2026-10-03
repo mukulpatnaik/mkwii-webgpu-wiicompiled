@@ -3,6 +3,7 @@
 #include "runtime_config.h"
 #include "memory.h"
 #include "memory_access.h"
+#include "region/guest_region.h"
 
 #include <algorithm>
 #include <array>
@@ -89,13 +90,13 @@ void InitializeBenchmark() {
 
 void RecordBenchmarkStep() noexcept {
     if (!BenchmarkEnabled()) return;
-    // Supported RMCP01: Raceinfo singleton and stage, also used by IsAtLeastStage.
+    // Raceinfo singleton and stage, also used by IsAtLeastStage.
     // Stage 2 is active racing, excluding intro/countdown from the driving benchmark.
     int stage = -1;
-    const uint32_t raceInfo = Memory::Read32(0x809BD730u);
+    const uint32_t raceInfo = Memory::Read32(MKW_GADDR(809BD730));  // Raceinfo instance
     if (raceInfo && Memory::Contains(raceInfo, 44)) stage = static_cast<int>(Memory::Read32(raceInfo + 40));
     int course = -1, engine = -1, mode = -1, players = -1, firstPlayerType = -1;
-    const uint32_t scenario = Memory::Read32(0x809BD728u);
+    const uint32_t scenario = Memory::Read32(MKW_GADDR(809BD728));  // Racedata (RaceConfig) instance
     if (scenario && Memory::Contains(scenario, 2932)) {
         course = static_cast<int>(Memory::Read32(scenario + 2920));
         engine = static_cast<int>(Memory::Read32(scenario + 2924));
