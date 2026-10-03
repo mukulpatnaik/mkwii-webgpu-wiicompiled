@@ -45,10 +45,22 @@ of finding the file. Elsewhere, and after "Clear local game data", the player pi
 
 The web build compiles the reader with cargo (Rust stable plus
 `rustup target add wasm32-unknown-unknown`); nod is pinned by git revision in
-`disc-wasm/Cargo.toml` and `Cargo.lock`. For an offline build, point `-DMKW_NOD_SOURCE_DIR=` at a
-local nod checkout. Without cargo the build still succeeds, with a warning, and can only play a
-staged folder. The build places `mkw_disc.wasm` and `mkw_disc_worker.js` next to
-`WiiCompiled.html`; copy them wherever the page is staged or deployed.
+`disc-wasm/Cargo.toml` and `Cargo.lock`. Cargo builds a copy of the crate in the build directory
+(`disc-wasm/crate`, by `disc-wasm/build_disc_reader.cmake`), so a build never writes into the
+source tree. For an offline build, point `-DMKW_NOD_SOURCE_DIR=` at a local checkout of the nod
+repository at the pinned revision (its crates.io dependencies must already be in cargo's cache);
+the copied `Cargo.lock` is then re-resolved for the local path, and the committed one is left
+alone.
+
+The disc reader is optional for the build. When CMake configures, it checks for cargo and for the
+wasm32-unknown-unknown standard library in the toolchain cargo will use; when either is missing it
+warns, builds the rest, and leaves out `mkw_disc.wasm` (install it and run CMake again). A cargo
+failure during the build (for example offline without a cached nod) is also a warning, and removes
+any `mkw_disc.wasm` left from an earlier build. Without it the page says the disc reader is
+missing from the site when a player picks an image, and a staged folder still plays.
+
+The build places `mkw_disc.wasm` and `mkw_disc_worker.js` next to `WiiCompiled.html`; copy them
+wherever the page is staged or deployed.
 
 ## Limits
 

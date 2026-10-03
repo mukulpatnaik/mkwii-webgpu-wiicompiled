@@ -202,6 +202,9 @@ endif()
 # compiled to wasm32-unknown-unknown (src/platform/web/disc-wasm). Both files are placed next to
 # WiiCompiled.{html,js,wasm}, where the page loads them; stage or deploy them with the rest.
 # MKW_NOD_SOURCE_DIR builds against a local nod checkout instead of the pinned git revision.
+# Without cargo or its wasm32-unknown-unknown target, or when cargo fails, the web build still
+# succeeds with a warning: the page then says the disc reader is missing, and only a staged game
+# folder plays.
 set(MKW_NOD_SOURCE_DIR "" CACHE PATH "Local nod checkout for the browser disc reader (default: the revision pinned in disc-wasm/Cargo.toml)")
 function(mkw_add_web_disc_reader)
     if(TARGET mkw_web_disc_reader)
@@ -215,26 +218,41 @@ function(mkw_add_web_disc_reader)
         DEPENDS "${web_dir}/mkw_disc_worker.js"
         VERBATIM)
     find_program(MKW_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin")
-    if(MKW_CARGO)
-        set(cargo_args build --release --target wasm32-unknown-unknown
-            --manifest-path "${crate_dir}/Cargo.toml" --target-dir "${CMAKE_BINARY_DIR}/disc-wasm")
-        if(MKW_NOD_SOURCE_DIR)
-            list(APPEND cargo_args --config "patch.'https://github.com/encounter/nod'.nod.path='${MKW_NOD_SOURCE_DIR}/nod'")
-        else()
-            list(APPEND cargo_args --locked)
-        endif()
-        add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/mkw_disc.wasm"
-            COMMAND ${MKW_CARGO} ${cargo_args}
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_BINARY_DIR}/disc-wasm/wasm32-unknown-unknown/release/mkw_disc_wasm.wasm"
-                "${CMAKE_BINARY_DIR}/mkw_disc.wasm"
-            DEPENDS "${crate_dir}/Cargo.toml" "${crate_dir}/Cargo.lock" "${crate_dir}/src/lib.rs"
-            COMMENT "Building the browser disc reader (nod for wasm32-unknown-unknown)"
-            VERBATIM)
-        list(APPEND outputs "${CMAKE_BINARY_DIR}/mkw_disc.wasm")
+    find_program(MKW_RUSTC rustc HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin")
+    set(missing "")
+    if(NOT MKW_CARGO OR NOT MKW_RUSTC)
+        set(missing "cargo was not found. Install Rust (https://rustup.rs) and run \"rustup target add wasm32-unknown-unknown\"")
     else()
-        message(WARNING "cargo was not found: this web build has no disc reader (mkw_disc.wasm), so it "
-                        "can only play a staged game folder. Install Rust with the wasm32-unknown-unknown target.")
+        # The toolchain cargo will use (rustup honours overrides in the crate's directory) must
+        # have the wasm32 standard library; otherwise cargo would only fail at build time.
+        execute_process(COMMAND "${MKW_RUSTC}" --print sysroot WORKING_DIRECTORY "${crate_dir}"
+            OUTPUT_VARIABLE sysroot RESULT_VARIABLE sysroot_result
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(NOT sysroot_result EQUAL 0 OR NOT IS_DIRECTORY "${sysroot}/lib/rustlib/wasm32-unknown-unknown/lib")
+            set(missing "the Rust toolchain at ${sysroot} has no wasm32-unknown-unknown target. Run \"rustup target add wasm32-unknown-unknown\"")
+        endif()
+    endif()
+    if(missing STREQUAL "")
+        set(work_dir "${CMAKE_BINARY_DIR}/disc-wasm")
+        set(stamp "${work_dir}/mkw_disc.stamp")
+        file(GLOB crate_sources CONFIGURE_DEPENDS "${crate_dir}/src/*.rs")
+        add_custom_command(OUTPUT "${stamp}"
+            BYPRODUCTS "${CMAKE_BINARY_DIR}/mkw_disc.wasm"
+            COMMAND ${CMAKE_COMMAND} "-DCARGO=${MKW_CARGO}" "-DCRATE_DIR=${crate_dir}"
+                "-DWORK_DIR=${work_dir}" "-DOUTPUT=${CMAKE_BINARY_DIR}/mkw_disc.wasm"
+                "-DSTAMP=${stamp}" "-DNOD_SOURCE_DIR=${MKW_NOD_SOURCE_DIR}"
+                -P "${crate_dir}/build_disc_reader.cmake"
+            DEPENDS "${crate_dir}/build_disc_reader.cmake" "${crate_dir}/Cargo.toml"
+                "${crate_dir}/Cargo.lock" ${crate_sources}
+            COMMENT "Building the browser disc reader (nod for wasm32-unknown-unknown)"
+            USES_TERMINAL
+            VERBATIM)
+        list(APPEND outputs "${stamp}")
+    else()
+        # A reader left from an earlier configuration would not be rebuilt with the worker script.
+        file(REMOVE "${CMAKE_BINARY_DIR}/mkw_disc.wasm")
+        message(WARNING "This web build has no disc reader (mkw_disc.wasm), so players cannot use their "
+                        "own disc image and only a staged game folder plays: ${missing}, then run CMake again.")
     endif()
     add_custom_target(mkw_web_disc_reader DEPENDS ${outputs})
 endfunction()
