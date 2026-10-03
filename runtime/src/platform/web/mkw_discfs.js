@@ -32,13 +32,16 @@ addToLibrary({
     const hello = () => channel.postMessage({type: 'hello'});
     const helloTimer = setInterval(hello, 500);
     hello();
-    const giveUp = setTimeout(() => {
+    const noAnswer = () => {
       clearInterval(helloTimer);
       if (!manifestBytes) {
         console.error('[web-disc] the disc reader did not answer; reload the page and choose the disc again');
         resolveReady(false);
       }
-    }, MANIFEST_TIMEOUT_MS);
+    };
+    // The worker answers 'preparing' while it indexes the menu videos (seconds on slow storage);
+    // each answer restarts the wait, so only a worker that stops answering gives up.
+    let giveUp = setTimeout(noAnswer, MANIFEST_TIMEOUT_MS);
 
     const fileKeys = new Map();         // file pointer -> key
     const cache = new Map();            // key -> Map(index -> Uint8Array)
@@ -100,6 +103,9 @@ addToLibrary({
         clearTimeout(giveUp);
         console.error('[web-disc] serving ' + parsed.size + ' files from the local disc image');
         resolveReady(true);
+      } else if (data.type === 'preparing' && !manifestBytes) {
+        clearTimeout(giveUp);
+        giveUp = setTimeout(noAnswer, MANIFEST_TIMEOUT_MS);
       } else if (data.type === 'chunk' && typeof data.path === 'string' && data.bytes instanceof ArrayBuffer) {
         const key = '/game/' + data.path;
         const size = sizes.get(key);

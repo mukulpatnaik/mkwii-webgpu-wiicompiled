@@ -40,7 +40,8 @@ function setup({ chunkSize = 4, worker: script = {}, cacheLimit, manifestTimeout
   const worker = new Channel('disc-test');
   worker.onmessage = ({ data }) => {
     if (data.type === 'hello') {
-      if (!script.silent) worker.postMessage({ type: 'manifest', text: script.manifest ?? manifest });
+      if (script.preparing?.()) worker.postMessage({ type: 'preparing' });
+      else if (!script.silent) worker.postMessage({ type: 'manifest', text: script.manifest ?? manifest });
       return;
     }
     if (data.type !== 'read') return;
@@ -293,6 +294,15 @@ test('without an answer from the disc worker, reads fail instead of hanging', as
   assert.equal(await backend.read(2, 0, 4, 0), -5);
   assert.equal(await backend.getSize(2), 0);
   assert.ok(errors.some((line) => /did not answer/.test(line)));
+  done();
+});
+
+test('a worker that is still preparing the manifest is waited for past the timeout', async () => {
+  const ready = performance.now() + 1200;
+  const { backend, heap, errors, done } = setup({ manifestTimeout: 700, worker: { preparing: () => performance.now() < ready } });
+  assert.equal(await backend.read(2, 0, 4, 0), 4);
+  assert.equal(text(heap.slice(0, 4)), 'abcd');
+  assert.ok(!errors.some((line) => /did not answer/.test(line)));
   done();
 });
 

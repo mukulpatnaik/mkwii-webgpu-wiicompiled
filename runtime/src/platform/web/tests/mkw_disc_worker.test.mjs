@@ -72,7 +72,7 @@ function startWorker({ regions } = {}) {
   const timers = [];
   vm.runInNewContext(text, {
     self, BroadcastChannel: Channel, MessageChannel: ImmediateChannel, FileReaderSync, WebAssembly, TextDecoder, URL,
-    crypto: webcrypto, performance, console: { log: (s) => logs.push(s), error: (s) => logs.push(s) },
+    crypto: webcrypto, performance, setTimeout, console: { log: (s) => logs.push(s), error: (s) => logs.push(s) },
     setInterval: (fn, ms) => { timers.push(fn); return timers.length; },
     fetch: async (url) => {
       assert.equal(String(url), 'https://game.test/mkw_disc.wasm');
@@ -95,17 +95,22 @@ function startWorker({ regions } = {}) {
     }
     throw new Error('timed out');
   }
-  return { open, game, received, waitFor, logs, timers };
+  return { open, game, received, waitFor, logs, timers, posted };
 }
 
-// A GameCube-layout disc: boot.bin, bi2.bin, an apploader, a DOL, an FST and three files.
-function syntheticDisc(gameId = 'RMCE01') {
+// A GameCube-layout disc: boot.bin, bi2.bin, an apploader, a DOL, an FST and three files, plus
+// any `extra` files ({"dir/name": Buffer}).
+function syntheticDisc(gameId = 'RMCE01', extra = {}) {
   const files = {
-    'rel/StaticR.rel': Buffer.from('static rel ' + 'r'.repeat(5000)),
     'Race/Course/castle_course.szs': Buffer.alloc(70000).map((_, i) => (i * 7) & 255),
     'opening.bnr': Buffer.from('banner'),
+    'rel/StaticR.rel': Buffer.from('static rel ' + 'r'.repeat(5000)),
+    ...extra,
   };
-  const image = Buffer.alloc(0x40000);
+  const dataStart = 0x8000;
+  let imageSize = dataStart;
+  for (const bytes of Object.values(files)) imageSize = (imageSize + bytes.length + 0x7FFF) & ~0x7FFF;
+  const image = Buffer.alloc(Math.max(imageSize, 0x40000));
   image.write(gameId, 0, 'latin1');
   image.writeUInt32BE(0xC2339F3D, 0x1C);
   image.write('SYNTHETIC TEST DISC', 0x20, 'latin1');
@@ -121,26 +126,37 @@ function syntheticDisc(gameId = 'RMCE01') {
   image.writeUInt32BE(0x80003100, dol + 0xE0);
   image.fill(0x60, dol + 0x100, dol + 0x180);
   // File data from 0x8000.
-  let next = 0x8000;
+  let next = dataStart;
   const placed = {};
   for (const [name, bytes] of Object.entries(files)) {
     bytes.copy(image, next);
     placed[name] = { offset: next, size: bytes.length };
     next = (next + bytes.length + 0x7FFF) & ~0x7FFF;
   }
-  // FST at 0x4000: root, "Race" > "Course" > castle_course.szs, opening.bnr, "rel" > StaticR.rel.
+  // FST at 0x4000, in preorder: a directory's entry holds its parent's index and the index after
+  // its last descendant; a file's its offset and size.
+  const tree = new Map();
+  for (const name of Object.keys(files).sort()) {
+    let node = tree;
+    const parts = name.split('/');
+    for (const part of parts.slice(0, -1)) node = node.get(part) || node.set(part, new Map()).get(part);
+    node.set(parts.at(-1), name);
+  }
   const names = [];
   const nameOffset = (name) => { const at = names.reduce((n, s) => n + s.length + 1, 0); names.push(name); return at; };
-  const nodes = [];
-  const dir = (name, parent, end) => nodes.push([1, nameOffset(name), parent, end]);
-  const file = (name, key) => nodes.push([0, nameOffset(name), placed[key].offset, placed[key].size]);
-  nodes.push([1, 0, 0, 0]);  // root; its length is the node count
-  dir('Race', 0, 4);
-  dir('Course', 1, 4);
-  file('castle_course.szs', 'Race/Course/castle_course.szs');
-  file('opening.bnr', 'opening.bnr');
-  dir('rel', 0, 7);
-  file('StaticR.rel', 'rel/StaticR.rel');
+  const nodes = [[1, 0, 0, 0]];  // root; its length is the node count
+  const emit = (dir, parent) => {
+    for (const [name, child] of dir) {
+      if (typeof child === 'string') {
+        nodes.push([0, nameOffset(name), placed[child].offset, placed[child].size]);
+      } else {
+        const index = nodes.push([1, nameOffset(name), parent, 0]) - 1;
+        emit(child, index);
+        nodes[index][3] = nodes.length;
+      }
+    }
+  };
+  emit(tree, 0);
   nodes[0][3] = nodes.length;
   const fst = 0x4000;
   nodes.forEach(([kind, name, offset, length], i) => {
@@ -151,11 +167,94 @@ function syntheticDisc(gameId = 'RMCE01') {
   const strings = Buffer.from(names.map((n) => n + '\0').join(''), 'latin1');
   strings.copy(image, fst + nodes.length * 12);
   const fstSize = nodes.length * 12 + strings.length;
+  assert.ok(fst + fstSize <= dataStart);
   image.writeUInt32BE(dol, 0x420);
   image.writeUInt32BE(fst, 0x424);
   image.writeUInt32BE(fstSize, 0x428);
   image.writeUInt32BE(fstSize, 0x42C);
   return { image, files, dolBytes: image.subarray(dol, dol + 0x180) };
+}
+
+// A THP movie in the layout of the game's menu previews: a header, one video component, then
+// `count` frames of varying size, each starting with its links (next size, previous size, image
+// size), the last linking back to the first when it loops.
+function syntheticThp({ count = 8, fps = 59.94, loop = true, previous = true, audio = false, trailer = 0 } = {}) {
+  const first = 0x60;
+  const sizes = Array.from({ length: count }, (_, i) => 0x40 + ((i * 37) % 5) * 0x20);
+  const dataSize = sizes.reduce((a, b) => a + b, 0);
+  const thp = Buffer.alloc(first + dataSize + trailer);
+  thp.write('THP\0', 0, 'latin1');
+  thp.writeUInt32BE(0x11000, 4);
+  thp.writeUInt32BE(Math.max(...sizes), 8);
+  thp.writeFloatBE(fps, 16);
+  thp.writeUInt32BE(count, 20);
+  thp.writeUInt32BE(sizes[0], 24);
+  thp.writeUInt32BE(dataSize, 28);
+  thp.writeUInt32BE(0x30, 32);
+  thp.writeUInt32BE(first, 40);
+  thp.writeUInt32BE(first + dataSize - sizes.at(-1), 44);
+  thp.writeUInt32BE(audio ? 2 : 1, 0x30);
+  thp.fill(0xFF, 0x34, 0x44);
+  thp.writeUInt8(0, 0x34);
+  if (audio) thp.writeUInt8(1, 0x35);
+  thp.writeUInt32BE(608, 0x44);
+  thp.writeUInt32BE(456, 0x48);
+  let at = first;
+  sizes.forEach((size, i) => {
+    thp.writeUInt32BE(i + 1 < count ? sizes[i + 1] : loop ? sizes[0] : 0, at);
+    thp.writeUInt32BE(i ? sizes[i - 1] : previous ? sizes.at(-1) : 0, at + 4);
+    thp.writeUInt32BE(size - 16, at + 8);
+    thp.fill(i + 1, at + 12, at + size);
+    at += size;
+  });
+  thp.fill(0xEE, at);
+  return thp;
+}
+
+// The conversion web_menu_videos.py makes (tools/ in the page tooling), on a whole file: every
+// other frame, links rewritten, frame rate halved.
+function halveThp(thp) {
+  const first = thp.readUInt32BE(40), count = thp.readUInt32BE(20);
+  const frames = [];
+  let at = first, size = thp.readUInt32BE(24);
+  for (let i = 0; i < count; i++) { frames.push([at, size]); at += size; size = thp.readUInt32BE(at - size); }
+  const kept = frames.filter((_, i) => i % 2 === 0);
+  const loop = thp.readUInt32BE(frames.at(-1)[0]) !== 0, previous = thp.readUInt32BE(first + 4) !== 0;
+  const parts = [Buffer.from(thp.subarray(0, first))];
+  let out = first, last = 0;
+  kept.forEach(([position, length], i) => {
+    const frame = Buffer.from(thp.subarray(position, position + length));
+    frame.writeUInt32BE(i + 1 < kept.length ? kept[i + 1][1] : loop ? kept[0][1] : 0, 0);
+    frame.writeUInt32BE(i ? kept[i - 1][1] : previous ? kept.at(-1)[1] : 0, 4);
+    last = out;
+    out += length;
+    parts.push(frame);
+  });
+  const header = parts[0];
+  header.writeUInt32BE(Math.max(...kept.map(([, length]) => length)), 8);
+  header.writeFloatBE(thp.readFloatBE(16) / 2, 16);
+  header.writeUInt32BE(kept.length, 20);
+  header.writeUInt32BE(kept[0][1], 24);
+  header.writeUInt32BE(out - first, 28);
+  header.writeUInt32BE(last, 44);
+  parts.push(thp.subarray(at));
+  return Buffer.concat(parts);
+}
+
+// Every chunk of a file the worker serves, joined.
+async function readWhole(worker, name, size, chunkSize) {
+  const last = Math.ceil(size / chunkSize) - 1;
+  worker.game.postMessage({ type: 'read', path: name, chunkSize, first: 0, last, priority: 0 });
+  await worker.waitFor((m) => m.type === 'chunk' && m.path === name && m.chunkSize === chunkSize && m.index === last);
+  return Buffer.concat([...Array(last + 1).keys()].map((i) => Buffer.from(worker.received.find((m) =>
+    m.type === 'chunk' && m.path === name && m.chunkSize === chunkSize && m.index === i).bytes)));
+}
+
+function manifestSizes(text) {
+  return new Map(text.split('\n').filter((l) => l.startsWith('f ')).map((l) => {
+    const [, size, name] = /^f (\d+) (.+)$/.exec(l);
+    return [name, Number(size)];
+  }));
 }
 
 async function recompHashes() {
@@ -281,6 +380,87 @@ test('a request queues only the chunks its file has, and an absurd range is refu
   assert.match(worker.received.find((m) => m.type === 'chunk-error' && m.index === 0 && m.path === path).message, /too many chunks/);
   assert.match(worker.received.find((m) => m.type === 'chunk-error' && m.index === 1e12).message, /past the end/);
   assert.deepEqual(answers.filter(([, name]) => name === 'missing.bin'), [['chunk-error', 'missing.bin', 0]]);
+});
+
+test('menu videos are served at half frame rate, as web_menu_videos.py stages them', { skip: !wasmBytes && 'no disc wasm built' }, async () => {
+  const movie = syntheticThp();
+  const extra = {
+    'thp/course/flower.thp': movie,                                   // converted
+    'thp/battle/battle_wii.thp': syntheticThp({ count: 10, loop: false, previous: false, trailer: 40 }),
+    'thp/title/top_menu.thp': movie,                                  // converted
+    'thp/title/title.thp': movie,                                     // not a menu preview
+    'thp/ending/ending_normal.thp': movie,                            // not a menu preview
+    'thp/course/odd.thp': syntheticThp({ count: 7 }),                 // refused: odd frame count
+    'thp/course/slow.thp': syntheticThp({ fps: 29.97 }),              // refused: under 50 fps
+    'thp/button/sound.thp': syntheticThp({ audio: true }),            // refused: has audio
+    'thp/button/two.thp': syntheticThp({ count: 2 }),                 // refused: one frame left
+  };
+  const { image, files, dolBytes } = syntheticDisc('RMCE01', extra);
+  const worker = startWorker({ regions: { RMCE01: { name: 'NTSC-U', dol: sha256(dolBytes), rel: sha256(files['rel/StaticR.rel']) } } });
+  const opened = worker.open(memoryFile(image));
+  // Asked while the videos are being indexed, the worker says the manifest is coming.
+  while (!worker.posted.length) await tick();
+  worker.game.postMessage({ type: 'hello' });
+  await worker.waitFor((m) => m.type === 'preparing');
+  assert.ok(!worker.received.some((m) => m.type === 'manifest'));
+  assert.equal((await opened).valid, true);
+  const [manifest] = await worker.waitFor((m) => m.type === 'manifest');
+  const sizes = manifestSizes(manifest.text);
+  assert.ok(worker.logs.some((line) => /menu videos: 3 at half frame rate/.test(line)), worker.logs.join('\n'));
+  for (const [name, bytes] of Object.entries(extra)) {
+    const converted = ['thp/course/flower.thp', 'thp/battle/battle_wii.thp', 'thp/title/top_menu.thp'].includes(name);
+    const expected = converted ? halveThp(bytes) : bytes;
+    assert.equal(sizes.get('DATA/files/' + name), expected.length, name);
+    // Small chunks, so that reads start and end inside frames and inside their link words.
+    for (const chunkSize of [7, 100, 4096]) {
+      assert.equal(sha256(await readWhole(worker, 'DATA/files/' + name, expected.length, chunkSize)), sha256(expected), name + ' in chunks of ' + chunkSize);
+    }
+  }
+  const half = halveThp(movie);
+  assert.equal(half.readUInt32BE(20), 4);
+  assert.equal(half.readFloatBE(16), Math.fround(Math.fround(59.94) / 2));
+  for (const name of ['odd', 'slow']) assert.ok(worker.logs.some((line) => line.includes('thp/course/' + name + '.thp is served at its original frame rate')));
+});
+
+test('your own disc image (MKW_DISC_IMAGE) serves the menu videos web_menu_videos.py makes (MKW_MENU_VIDEOS_DIR)',
+     { skip: !(wasmBytes && process.env.MKW_DISC_IMAGE && process.env.MKW_MENU_VIDEOS_DIR) && 'set MKW_DISC_IMAGE and MKW_MENU_VIDEOS_DIR to run' }, async () => {
+  // MKW_MENU_VIDEOS_DIR is the script's conversion cache (its third argument), holding
+  // files/thp/... for exactly the files it converted:
+  //   python3 tools/web_menu_videos.py Assets/DATA <scratch>/out <scratch>/cache
+  const reference = process.env.MKW_MENU_VIDEOS_DIR;
+  const converted = new Map();
+  const walk = (dir) => {
+    for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, item.name);
+      if (item.isDirectory()) walk(full);
+      else if (item.name.endsWith('.thp')) converted.set('DATA/' + path.relative(reference, full).split(path.sep).join('/'), full);
+    }
+  };
+  walk(path.join(reference, 'files'));
+  assert.ok(converted.size > 0, 'no converted videos under ' + reference);
+  const worker = startWorker();
+  const started = performance.now();
+  const result = await worker.open(diskFile(process.env.MKW_DISC_IMAGE));
+  console.log(`opened and indexed in ${(performance.now() - started).toFixed(0)} ms: ${worker.logs.find((line) => /menu videos/.test(line))}`);
+  assert.equal(result.valid, true, result.reason);
+  worker.game.postMessage({ type: 'hello' });
+  const [manifest] = await worker.waitFor((m) => m.type === 'manifest');
+  const sizes = manifestSizes(manifest.text);
+  const extracted = process.env.MKW_DISC_EXTRACTED;
+  for (const [name, size] of sizes) {
+    if (!name.startsWith('DATA/files/thp/')) continue;
+    if (converted.has(name)) {
+      assert.equal(size, fs.statSync(converted.get(name)).size, name + ' has the converted size');
+    } else if (extracted) {
+      assert.equal(size, fs.statSync(path.join(extracted, name.slice(5))).size, name + ' is not converted, as by the script');
+    }
+  }
+  for (const [name, file] of converted) {
+    assert.ok(sizes.has(name), name + ' is on the disc');
+    const bytes = await readWhole(worker, name, sizes.get(name), 1 << 20);
+    assert.equal(sha256(bytes), sha256(fs.readFileSync(file)), name + ' matches the script\'s output byte for byte');
+    worker.received.length = 0;
+  }
 });
 
 test('a file that is not a disc image fails with a readable reason', { skip: !wasmBytes && 'no disc wasm built' }, async () => {

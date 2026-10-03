@@ -35,6 +35,16 @@ returned instead of the manifest does not count as a staged folder.
    chunk next. The race prefetch API (`web_race_warm.cpp`'s `mkw-prefetch` channel), the next
    Grand Prix course and final-lap music warmups, and the sound-archive regions a race reads as it
    starts work as they do for a staged folder.
+5. The menu's video previews (`thp/button`, `thp/course`, `thp/battle` and `thp/title/top_menu.thp`)
+   are served with every other frame at half the frame rate, the same files `tools/stage-web.sh`
+   stages (`tools/web_menu_videos.py` in the page tooling): they play at the same speed for half
+   the JPEG decoding (played from the originals, the pre-race menus fell to about 30 fps in
+   Chrome). Kept frames are copied byte for byte; only the THP container's links, frame count,
+   rate and offsets change. After it reports the disc, the worker walks each of those files'
+   frame chain once (about 3 s for the 490 MB of NTSC-U menu videos, in Node and in Chrome),
+   answers the game's requests for the manifest with "preparing" meanwhile, and then lists the
+   converted sizes; chunks of a converted file are assembled from the original as they are read.
+   A file the conversion refuses is served unchanged.
 
 Where the browser has `showOpenFilePicker` (Chrome, Edge), the picked file's handle is kept in
 IndexedDB (`mkw-disc`), so a returning player clicks "Use ... again" and confirms access instead
@@ -66,8 +76,7 @@ wherever the page is staged or deployed.
 
 - RVZ, WIA, GCZ and NKit images need compression backends that are not compiled for the web;
   the page says so and asks for ISO or WBFS.
-- Menu videos play from the disc's original THP files. A staged folder can use the half-frame-rate
-  copies `tools/stage-web.sh` makes, which cost less to decode.
+- The menu videos are indexed each time an image is opened; nothing is kept between visits.
 
 ## Tests
 
@@ -76,4 +85,8 @@ wherever the page is staged or deployed.
 synthetic GameCube-layout image (`mkw_disc_worker.test.mjs`; set `MKW_DISC_WASM` or
 `MKW_WEB_BUILD_DIR`, otherwise those tests are skipped) and the page (`room_ui.test.mjs`). With
 `MKW_DISC_IMAGE=/path/to/your.wbfs` (and optionally `MKW_DISC_EXTRACTED=/path/to/Assets/DATA`) the
-worker test also opens your own image in place and compares files with the extracted copy.
+worker test also opens your own image in place and compares files with the extracted copy. With
+`MKW_MENU_VIDEOS_DIR` set as well, to the conversion cache `web_menu_videos.py` writes (its third
+argument; run it into a scratch directory outside the repository), it checks that the worker
+converts exactly the files the script converts, to the same bytes. All of that output is
+game-derived: keep it out of git.
