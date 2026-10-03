@@ -38,8 +38,9 @@ inline void ApplyRuntimeCallOptions(uint32_t target, CpuContext* ctx) {
     WebGuestProfile::Push(target, ctx);
 #endif
 #if MKW_WEB_PAL_HOOKS
-    // Follow section creation/update through the engine's ordinary lifecycle.
-    if (target == 0x80634FBCu || target == 0x806224F8u) {
+    // Follow section creation/update through the engine's ordinary lifecycle
+    // (SectionMgr::LoadSection, Section::Update).
+    if (target == MKW_GADDR(80634FBC) || target == MKW_GADDR(806224F8)) {
         WebRoomLaunch::BeforeGuestCall(target, ctx);
     }
 #endif
@@ -55,11 +56,13 @@ inline void ApplyRuntimeCallOptions(uint32_t target, CpuContext* ctx) {
 // both skipped when the web runtime supplies the result itself.
 MKW_PPC_FORCE_INLINE bool TryHandleRuntimeCall(uint32_t target, CpuContext* ctx) {
 #if defined(__EMSCRIPTEN__) && MKW_WEB_PAL_HOOKS
-    if (target == 0x80622DA0u) {
+    if (target == MKW_GADDR(80622DA0)) {  // Section::AddPageLayer
         return WebRoomLaunch::TryHandleGuestCall(target, ctx);
     }
     // Constants, so the ~100k generated static calls fold this away; see web_guest_hooks.cpp.
-    if (target == 0x80654B00u || target == 0x80554E6Cu || target == 0x80009988u || target == 0x8023AEACu) {
+    // RKNet::PacketMgr::ProcessLagFrames, RaceScene::OnCalc, RKSceneManager::draw, EGG::SceneManager::draw.
+    if (target == MKW_GADDR(80654B00) || target == MKW_GADDR(80554E6C) || target == MKW_GADDR(80009988) ||
+        target == MKW_GADDR(8023AEAC)) {
         if (WebGuestHooks::Handle(target, ctx)) return true;
     }
 #else
@@ -78,7 +81,7 @@ MKW_PPC_FORCE_INLINE void CompleteRuntimeCallOptions(uint32_t target, CpuContext
     WebGuestProfile::Pop(target, ctx);
 #endif
 #if MKW_WEB_PAL_HOOKS
-    if (target == 0x80634E44u) {
+    if (target == MKW_GADDR(80634E44)) {  // SectionMgr::Init
         WebRoomLaunch::AfterGuestCall(target, ctx);
     }
 #endif

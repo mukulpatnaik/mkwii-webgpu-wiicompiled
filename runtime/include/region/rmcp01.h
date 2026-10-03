@@ -23,6 +23,8 @@
 #define MKW_F_80006348 func_80006348
 #define MKW_G_800077C8 0x800077C8u  // StrapScene::CheckInput
 #define MKW_F_800077C8 func_800077C8
+#define MKW_G_80009988 0x80009988u  // RKSceneManager::draw
+#define MKW_F_80009988 func_80009988
 #define MKW_G_8000A000 0x8000A000u  // 0x8000a000
 #define MKW_F_8000A000 func_8000A000
 #define MKW_G_8000A400 0x8000A400u
@@ -1285,6 +1287,8 @@
 #define MKW_F_8021b688 func_8021b688
 #define MKW_G_8022e2bc 0x8022e2bcu  // EGG::LightTexture::SetupTevFinish
 #define MKW_F_8022e2bc func_8022e2bc
+#define MKW_G_8023AEAC 0x8023AEACu  // EGG::SceneManager::draw
+#define MKW_F_8023AEAC func_8023AEAC
 #define MKW_G_8023BD38 0x8023BD38u  // EGG::ScnRenderer::CreatePath
 #define MKW_F_8023BD38 func_8023BD38
 #define MKW_G_8023E53C 0x8023E53Cu  // EGG::Screen::SetTVModeDefault
@@ -1545,10 +1549,22 @@
 #define MKW_F_805529A8 func_805529A8
 #define MKW_G_80552A74 0x80552A74u  // THP::VideoDecoderOnMemory
 #define MKW_F_80552A74 func_80552A74
+#define MKW_G_80554E6C 0x80554E6Cu  // RaceScene::OnCalc
+#define MKW_F_80554E6C func_80554E6C
 #define MKW_G_8055531C 0x8055531Cu  // RelProlog
 #define MKW_F_8055531C func_8055531C
 #define MKW_G_805653D0 0x805653D0u  // 0x805653d0
 #define MKW_F_805653D0 func_805653D0
+#define MKW_G_806224F8 0x806224F8u  // Section::Update
+#define MKW_F_806224F8 func_806224F8
+#define MKW_G_80622DA0 0x80622DA0u  // Section::AddPageLayer
+#define MKW_F_80622DA0 func_80622DA0
+#define MKW_G_80634E44 0x80634E44u  // SectionMgr::Init
+#define MKW_F_80634E44 func_80634E44
+#define MKW_G_80634FBC 0x80634FBCu  // SectionMgr::LoadSection
+#define MKW_F_80634FBC func_80634FBC
+#define MKW_G_80654B00 0x80654B00u  // RKNet::PacketMgr::ProcessLagFrames
+#define MKW_F_80654B00 func_80654B00
 #define MKW_G_8088f400 0x8088f400u
 #define MKW_F_8088f400 func_8088f400
 #define MKW_G_8088f704 0x8088f704u

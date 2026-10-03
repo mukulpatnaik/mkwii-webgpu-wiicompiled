@@ -2,6 +2,7 @@
 #include "web_guest_hooks.h"
 
 #include "hle_stubs.h"
+#include "region/guest_region.h"
 #include "ppc_runtime.h"
 #include "web_pacing.h"
 #include "web_performance.h"
@@ -14,10 +15,11 @@ namespace WebGuestHooks {
 
 namespace {
 
-constexpr uint32_t kRaceCalc = 0x80554E6Cu;      // RaceScene::OnCalc
-constexpr uint32_t kSceneDraw = 0x80009988u;     // RKSceneManager::draw (EGG::SceneManager::draw)
-constexpr uint32_t kEggSceneDraw = 0x8023AEACu;  // EGG::SceneManager::draw
-constexpr uint32_t kProcessLagFrames = 0x80654B00u;  // RKNet::PacketMgr::ProcessLagFrames
+// PAL identities (region/guest_region.h); each resolves to this region's entry point.
+constexpr uint32_t kRaceCalc = MKW_GADDR(80554E6C);          // RaceScene::OnCalc
+constexpr uint32_t kSceneDraw = MKW_GADDR(80009988);         // RKSceneManager::draw (EGG::SceneManager::draw)
+constexpr uint32_t kEggSceneDraw = MKW_GADDR(8023AEAC);      // EGG::SceneManager::draw
+constexpr uint32_t kProcessLagFrames = MKW_GADDR(80654B00);  // RKNet::PacketMgr::ProcessLagFrames
 
 constexpr int32_t kMaxSkipStreak = 5;  // at least every sixth iteration is drawn (10 frames a second)
 constexpr int32_t kForgiveLag = 6;     // further behind than this is a stall, not slowness
