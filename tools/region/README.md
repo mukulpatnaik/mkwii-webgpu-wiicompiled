@@ -103,7 +103,7 @@ it cannot establish is written out as `UNRESOLVED`, which then fails header gene
 | `PROVEN` | The instruction at the ported reference site forms exactly this address, **and** the independent chunk-table port agrees. Two derivations, one answer. |
 | `CALIBRATED` | The reference site reproduces the hand-verified NTSC-U address, so its decode is trusted here even where the chunk table has no mapping. |
 | `MATCHED` | The reference site's instruction window, with region-varying fields masked out, occurs exactly once in this region's code; the displacement was read from it. Resolves globals inside functions whose length changed. |
-| `ANCHORED` | A fixed offset from a resolved neighbour, where the same offset holds in the verified NTSC-U table. |
+| `ANCHORED` | A fixed offset from a resolved neighbour, or from the nearest data word the chunk table maps in the same section, where the same offset holds in the verified NTSC-U table (and, for a chunk-mapped word, the next mapped word above moved by the same amount in this region). |
 | `SECTION` | A section boundary, taken from the region's own section table. |
 | `SECTION-RELATIVE` | Same offset within the same named section. Bounds-checked; weaker, and labelled as such. |
 | `CHUNK-ONLY` | Chunk-table port with no reference site confirming it. Weakest. |

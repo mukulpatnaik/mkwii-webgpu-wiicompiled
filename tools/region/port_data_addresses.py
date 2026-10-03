@@ -252,6 +252,42 @@ def main():
             return None, None
         return resolved[best] + delta, best
 
+    # Chunk-anchored derivation. The chunk tables map a few isolated data words, and a global with
+    # no mapping of its own often sits a little above one of them in the same section. Its offset
+    # from that word carries over when (a) the verified NTSC-U table shows the same offset from the
+    # same word's NTSC-U mapping, and (b) the next mapped word above it in the section, if any,
+    # moved by the same amount in this region, so nothing was inserted or removed in between.
+    # This runs before SECTION-RELATIVE because sections shift internally: RMCK01's REL .data sits
+    # 0x18 further into the section than PAL from PAL 0x808B3984 on, so the same offset within
+    # .data lands 0x18 short there.
+    def pal_section(addr):
+        for tbl in (pm.DOL_SECTIONS["P"], pm.REL_SECTIONS["P"]):
+            for name, start, end in tbl:
+                if start <= addr < end:
+                    return start, end
+        return None
+
+    def chunk_anchored(pal):
+        sec = pal_section(pal)
+        e_addr = e_by_pal.get(pal)
+        if sec is None or e_addr is None:
+            return None, None, None
+        below = [c for c in dst if sec[0] <= c[0] and c[1] <= pal]
+        above = [c for c in dst if pal < c[0] < sec[1]]
+        if not below:
+            return None, None, None
+        s, e, d = max(below)
+        offset = pal - s
+        e_anchor = port(pm.CHUNKS_E, s)
+        if e_anchor is None or e_addr - e_anchor != offset:
+            return None, None, None
+        if above:
+            s2, _e2, d2 = min(above)
+            if d2 - s2 != d - s:
+                return None, None, None
+            return d + offset, s, s2
+        return d + offset, s, None
+
     rows, proven, unresolved = [], 0, 0
     e_by_pal = {}
     for line in open(args.source_table):
@@ -363,6 +399,15 @@ def main():
                 resolved[pal] = derived
                 proven += 1
                 continue
+            derived, anchor, upper = chunk_anchored(pal)
+            if derived is not None:
+                bracket = (f"; next mapped word {upper:08X} moved by the same amount" if upper is not None
+                           else "")
+                rows.append(f"{pal:08X} {derived:08X} ANCHORED +0x{pal - anchor:X} from chunk-mapped"
+                            f" {anchor:08X} (same offset holds in the verified NTSC-U table{bracket})")
+                resolved[pal] = derived
+                proven += 1
+                continue
             rel_addr, sname = section_relative(pal)
             if rel_addr is not None:
                 resolved[pal] = rel_addr
@@ -386,8 +431,9 @@ def main():
         "#                differ between regions masked out, occurs exactly once in this region's",
         "#                code; the displacement was read from that instruction. Used where the",
         "#                chunk table is not instruction-exact inside a function.",
-        "#   ANCHORED   - a fixed offset from a resolved neighbour, where the verified NTSC-U",
-        "#                table shows the same offset (a record inside a table, say).",
+        "#   ANCHORED   - a fixed offset from a resolved neighbour or a chunk-mapped data word,",
+        "#                where the verified NTSC-U table shows the same offset (a record inside",
+        "#                a table, say).",
         "#   SECTION    - a section boundary, taken from the region section table.",
         "#   SECTION-RELATIVE - same offset within the same named section; used only where the",
         "#                chunk table has no mapping and no reference site confirmed one.",
