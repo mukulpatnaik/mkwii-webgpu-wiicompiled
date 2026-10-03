@@ -184,6 +184,19 @@
     <p class="note" id="keyboard-off" hidden>The keyboard is turned off for player 1: turn it on in
       <kbd>F10</kbd> → Controller settings.</p>
     <p class="note">A game controller works too. On a Mac keyboard, press <kbd>fn</kbd>+<kbd>F10</kbd>.</p>
+    <!-- Saves: export, import and backups of the save and settings (mkw_saves.js). -->
+    <section id="saves-panel" aria-label="Saves" hidden>
+      <h3>Saves</h3>
+      <p class="note" id="saves-storage" role="status" style="margin-top: 0"></p>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px">
+        <button type="button" id="saves-export" class="link" title="Download rksys.dat">Export save</button>
+        <button type="button" id="saves-backup" class="link" title="Download the save and settings as a .zip">Export backup</button>
+        <button type="button" id="saves-import" class="link" title="Load an rksys.dat or a backup .zip">Import…</button>
+        <button type="button" id="saves-restore" class="link" title="Undo the last import" hidden>Restore previous save</button>
+      </div>
+      <input type="file" id="saves-file" accept=".dat,.zip,application/zip,application/octet-stream" hidden>
+      <p class="note" id="saves-message" role="status" style="margin-top: 8px"></p>
+    </section>
     <h3>Problems</h3>
     <p class="note" id="save-log-help">Low FPS, stutter, a crash or a disconnect? Press Save log straight after it
       happens, then DM the file to <strong>hiemal</strong> on Discord with a few words about what you saw.</p>

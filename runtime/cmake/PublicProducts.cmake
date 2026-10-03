@@ -287,7 +287,8 @@ function(mkw_configure_product target)
             LINK_DEPENDS "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js;${MKW_RUNTIME_SOURCE_DIR}/assets/pipeline/initial_pipeline_cache.db")
         set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS
             "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_benchmark.js"
-            "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js")
+            "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js"
+            "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_saves.js")
         target_link_options(${target} PRIVATE
             --use-port=emdawnwebgpu -sJSPI -sJSPI_EXPORTS=mkw_fiber_entry -sPROXY_TO_PTHREAD
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js"
@@ -303,6 +304,7 @@ function(mkw_configure_product target)
             "--shell-file=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html"
             "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js"
             "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js"
+            "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_saves.js"
             "--preload-file=${MKW_RUNTIME_SOURCE_DIR}/assets/wii@/app/wii_bootstrap"
             "--preload-file=${MKW_RUNTIME_SOURCE_DIR}/assets/dsp/dsp_coef.bin@/app/dsp_coef.bin"
             # Aurora looks for it in SDL's base path ("/" on the web) and prewarms from it.
