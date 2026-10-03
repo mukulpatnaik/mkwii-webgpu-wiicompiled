@@ -45,6 +45,7 @@ class Element {
   }
 
   append(...nodes) { this.moveChildren(nodes, false); }
+  insertBefore(node) { this.moveChildren([node], false); }
   prepend(...nodes) { this.moveChildren(nodes, true); }
 
   replaceChildren(...nodes) {
@@ -87,6 +88,15 @@ const workingGpu = {
   requestAdapter: async () => ({ info: { vendor: 'test' }, limits: {}, features: new Set() }),
 };
 
+// By default the page is served next to a staged game folder (tools/stage-web.sh), so it plays
+// that and asks for no disc image; the disc tests at the end serve no game folder.
+const stagedSiteFetch = async (url, options = {}) => {
+  if (url === 'game/manifest-v2.txt') return { ok: true, text: async () => 'd DATA\nf 10 DATA/sys/fst.bin\n' };
+  if (url === 'game/DATA/sys/boot.bin' && options.method === 'HEAD') return { ok: true };
+  throw new Error('unexpected fetch');
+};
+const noGameFolderFetch = async () => ({ ok: false, status: 404, text: async () => 'Not found' });
+
 function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: workingGpu, userAgent: 'test' }, pageOverride = {}) {
   const ids = [
     'room-message', 'room-panel', 'room-name', 'room-connection', 'room-roster', 'room-count',
@@ -95,11 +105,14 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
     'reload', 'overlay', 'controls', 'show-controls', 'hide-controls', 'canvas', 'volume',
     'volume-value', 'toggle-mute', 'keyboard-off', 'binding-help', 'room-code',
     'hint', 'diag', 'diag-text', 'diag-copy', 'game-runtime', 'save-status', 'save-log', 'diag-save-log', 'detailed-log',
+    'disc-panel', 'disc-status', 'disc-pick', 'disc-reuse', 'disc-file', 'disc-clear',
   ];
   const elements = new Map(ids.map((id) => [id, new Element(id)]));
   elements.get('start').disabled = true;
   elements.get('diag').hidden = true;
   elements.get('save-status').hidden = true;
+  elements.get('disc-panel').hidden = true;
+  elements.get('disc-reuse').hidden = true;
   elements.get('game-runtime').content = { querySelectorAll: () => [{
     attributes: [{ name: 'src', value: 'WiiCompiled.js' }, { name: 'async', value: '' }], textContent: '',
   }] };
@@ -147,7 +160,8 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
     setInterval: () => 0,
     Image: class { set src(value) { this.source = value; } },
     addEventListener() {},
-    fetch: async () => { throw new Error('unexpected fetch'); },
+    fetch: stagedSiteFetch,
+    crypto: { randomUUID: () => '0123abcd-0000-4000-8000-000000000000' },
     ...pageOverride,
   });
   vm.runInContext(inlineScript, context, { filename: 'shell.html inline script' });
@@ -738,4 +752,125 @@ test('Detailed logging is remembered and turns on the profiler without forwardin
   assert.equal(second.context.ENV.MKW_WEB_PERF, '1');
   context.Module.preRun[0]();
   assert.equal(context.ENV.MKW_WEB_PROFILE, undefined);
+});
+
+// The player's own disc image (mkw_disc_worker.js does the reading; these drive the page).
+class FakeWorker {
+  static instances = [];
+  constructor(url) { this.url = url; this.posted = []; this.terminated = false; FakeWorker.instances.push(this); }
+  postMessage(message) { this.posted.push(message); }
+  terminate() { this.terminated = true; }
+}
+const opened = (overrides = {}) => ({ type: 'opened', gameId: 'RMCE01', region: 'NTSC-U', files: 2007, bytes: 1,
+  valid: true, dolOk: true, relOk: true, reason: '', ms: 120, ...overrides });
+async function localDiscPage(search = '', overrides = {}) {
+  FakeWorker.instances = [];
+  const page = setupRoomPage(search, { gpu: workingGpu, userAgent: 'test' }, {
+    fetch: noGameFolderFetch, Worker: FakeWorker, BroadcastChannel: class {}, FileReader: class {}, ...overrides,
+  });
+  await settle();
+  page.context.Module._mkw_web_build_game_id = () => 'build-id';
+  page.context.Module.UTF8ToString = () => 'RMCE01';
+  const pick = (name = 'Mario Kart Wii.wbfs') => {
+    const file = { name, size: 1 };
+    page.elements.get('disc-file').files = [file];
+    page.elements.get('disc-file').dispatch('change');
+    return FakeWorker.instances.at(-1);
+  };
+  return { ...page, pick };
+}
+
+test('a staged game folder is played without asking for a disc image', async () => {
+  const { context, elements } = setupRoomPage('');
+  await settle();
+  context.Module.preRun[0]();
+  assert.equal(context.ENV.MKW_WEB_DISC, undefined);
+  assert.equal(elements.get('disc-panel').hidden, true);
+  context.Module.onRuntimeInitialized();
+  assert.equal(elements.get('start').disabled, false);
+  assert.equal(elements.get('start').textContent, 'Start');
+});
+
+test('without a game folder the page asks for a disc image and names its channel to the game', async () => {
+  const { context, elements } = await localDiscPage();
+  assert.equal(elements.get('disc-panel').hidden, false);
+  assert.match(elements.get('disc-status').textContent, /No disc image chosen/);
+  context.Module.preRun[0]();
+  assert.equal(context.ENV.MKW_WEB_DISC, 'mkw-disc-0123abcd-0000-4000-8000-000000000000');
+  context.Module.onRuntimeInitialized();
+  assert.equal(elements.get('start').disabled, true);
+  assert.equal(elements.get('start').textContent, 'Choose your disc image');
+});
+
+test('?disc=fetch keeps the staged folder even when the probe would find none', async () => {
+  const { context, elements } = setupRoomPage('?disc=fetch', { gpu: workingGpu, userAgent: 'test' }, { fetch: noGameFolderFetch });
+  await settle();
+  context.Module.preRun[0]();
+  assert.equal(context.ENV.MKW_WEB_DISC, undefined);
+  assert.equal(elements.get('disc-panel').hidden, true);
+});
+
+test('a verified disc of the build release enables Start, and starting keeps the panel in the controls', async () => {
+  const { context, elements, pick } = await localDiscPage();
+  const calls = [];
+  context.Module.callMain = (args) => calls.push(args);
+  const worker = pick();
+  assert.equal(worker.url, 'mkw_disc_worker.js');
+  assert.deepEqual(worker.posted.map(({ type, channel }) => [type, channel]),
+                   [['open', 'mkw-disc-0123abcd-0000-4000-8000-000000000000']]);
+  assert.match(elements.get('disc-status').textContent, /Reading Mario Kart Wii\.wbfs/);
+  worker.onmessage({ data: opened() });
+  assert.match(elements.get('disc-status').textContent, /waiting for the game to load/);
+  assert.equal(elements.get('start').disabled, true);
+  context.Module.onRuntimeInitialized();
+  assert.match(elements.get('disc-status').textContent, /RMCE01 \(NTSC-U\), main\.dol and StaticR\.rel verified, 2007 files/);
+  assert.equal(elements.get('disc-status').className, 'ok');
+  assert.equal(elements.get('start').disabled, false);
+  elements.get('start').dispatch('click');
+  assert.equal(calls.length, 1);
+  assert.equal(elements.get('disc-panel').parentNode, elements.get('controls'));
+  assert.equal(elements.get('disc-pick').disabled, true);
+  pick('another.iso');
+  assert.equal(FakeWorker.instances.length, 1, 'no new disc once the game runs');
+});
+
+test('another release, a modified dump or an unreadable file keeps Start disabled with the reason', async () => {
+  for (const [message, pattern] of [
+    [opened({ gameId: 'RMCP01', region: 'PAL' }), /PAL release \(RMCP01\), but this site plays the NTSC-U release \(RMCE01\)/],
+    [opened({ valid: false, relOk: false, reason: 'This NTSC-U disc image does not match a clean retail dump.' }), /does not match a clean retail dump/],
+    [{ type: 'failed', message: 'This file is not a disc image that can be read.' }, /Mario Kart Wii\.wbfs: This file is not a disc image/],
+  ]) {
+    const { context, elements, pick } = await localDiscPage();
+    context.Module.onRuntimeInitialized();
+    pick().onmessage({ data: message });
+    assert.match(elements.get('disc-status').textContent, pattern);
+    assert.equal(elements.get('disc-status').className, 'error');
+    assert.equal(elements.get('start').disabled, true);
+  }
+});
+
+test('picking again replaces the reader, and a late answer from the old one is ignored', async () => {
+  const { context, elements, pick } = await localDiscPage();
+  context.Module.onRuntimeInitialized();
+  const first = pick('first.wbfs');
+  const second = pick('second.wbfs');
+  assert.equal(first.terminated, true);
+  first.onmessage({ data: opened() });
+  assert.equal(elements.get('start').disabled, true);
+  second.onmessage({ data: opened() });
+  assert.equal(elements.get('start').disabled, false);
+  assert.match(elements.get('disc-status').textContent, /second\.wbfs/);
+});
+
+test('Clear local game data stops the reader and asks for the disc again', async () => {
+  const { context, elements, pick } = await localDiscPage();
+  context.Module.onRuntimeInitialized();
+  const worker = pick();
+  worker.onmessage({ data: opened() });
+  assert.equal(elements.get('start').disabled, false);
+  elements.get('disc-clear').dispatch('click');
+  await settle();
+  assert.equal(worker.terminated, true);
+  assert.equal(elements.get('start').disabled, true);
+  assert.match(elements.get('disc-status').textContent, /Cleared/);
 });

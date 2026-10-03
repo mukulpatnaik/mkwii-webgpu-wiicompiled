@@ -343,7 +343,7 @@ function(mkw_configure_product target)
             # can create additional workers through the responsive browser main thread if needed.
             -sSTACK_SIZE=8388608 -sDEFAULT_PTHREAD_STACK_SIZE=2097152 -sPTHREAD_POOL_SIZE=8
             -sWASMFS -sFORCE_FILESYSTEM -sEXIT_RUNTIME=0 -sASSERTIONS=1 --profiling-funcs
-            -sINVOKE_RUN=0 -sEXPORTED_RUNTIME_METHODS=callMain,ENV
+            -sINVOKE_RUN=0 -sEXPORTED_RUNTIME_METHODS=callMain,ENV,UTF8ToString
             "--shell-file=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html"
             "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js"
             "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js"

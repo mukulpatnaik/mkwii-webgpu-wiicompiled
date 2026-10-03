@@ -90,6 +90,23 @@
   #diag { color: var(--muted); max-width: 640px; margin-top: 10px; font-size: 13px; }
   #diag summary { cursor: pointer; text-align: center; }
   #diag-text { white-space: pre-wrap; word-break: break-word; margin: 8px 0 4px; user-select: text; }
+  /* The player's own disc image (mkw_disc_worker.js). Before the game starts it sits above the
+     Start button; afterwards it moves into the controls panel. */
+  #disc-panel { width: min(420px, calc(100% - 40px)); background: #111316ee; border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 20px; box-sizing: border-box; }
+  #disc-panel[hidden], #disc-panel [hidden] { display: none; }
+  #disc-panel h2 { font-size: 15px; margin: 0 0 6px; }
+  #disc-panel .note { margin: 0 0 12px; }
+  .disc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .disc-actions button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--key-line);
+    background: var(--key-bg); color: var(--text); cursor: pointer; }
+  .disc-actions button:disabled { opacity: .5; cursor: default; }
+  #disc-status { margin: 10px 0; color: var(--muted); overflow-wrap: anywhere; }
+  #disc-status.ok { color: #67d391; }
+  #disc-status.error { color: #ff8a80; }
+  #controls #disc-panel { width: auto; background: none; border: 0; border-bottom: 1px solid var(--line);
+    border-radius: 0; padding: 0 0 16px; margin-bottom: 16px; }
+  #controls #disc-panel .disc-actions, #controls #disc-intro { display: none; }
   /* Narrow windows: controls go below the game. */
   @media (max-width: 760px) {
     #layout { flex-direction: column; }
@@ -104,6 +121,18 @@
     <button id="show-controls" class="link" hidden>Show controls</button>
     <div id="overlay">
       <div id="lobby-card" hidden></div>
+      <section id="disc-panel" aria-label="Game disc" hidden>
+        <h2>Your game disc</h2>
+        <p class="note" id="disc-intro">Choose your own Mario Kart Wii disc image (WBFS, ISO or CISO), or drop it
+          here. It is read on this device and never uploaded.</p>
+        <div class="disc-actions">
+          <button type="button" id="disc-pick">Choose disc image…</button>
+          <button type="button" id="disc-reuse" hidden></button>
+        </div>
+        <input type="file" id="disc-file" accept=".wbfs,.iso,.ciso,.gcm" hidden>
+        <p id="disc-status" role="status" aria-live="polite"></p>
+        <button type="button" id="disc-clear" class="link">Clear local game data</button>
+      </section>
       <button id="start" disabled>Loading…</button>
       <button id="reload" hidden onclick="location.reload()">Reload</button>
       <div id="status"></div>
@@ -254,11 +283,17 @@
   let runtimeReady = false, runtimeFailed = false, roomLaunchFailed = false;
   let lobbyReady = !roomUrl, gameStarted = false, roomLaunchState = 'idle';
   let cancelRoomLaunchRequested = false, lobbySocket, selfRoomId = 0;
+  // Where the game data comes from: 'local' (the player's disc image) or 'fetch' (a staged game
+  // folder on the server). Decided below, before the game loads; "?disc=local|fetch" forces one.
+  let discMode = ['local', 'fetch'].includes(params.get('disc')) ? params.get('disc') : '';
+  let discReady = false;
   const updateStartButton = () => {
     const button = document.getElementById('start');
-    button.disabled = runtimeFailed || roomLaunchFailed || !runtimeReady || !lobbyReady || gameStarted;
+    const needsDisc = discMode === 'local' && !discReady;
+    button.disabled = runtimeFailed || roomLaunchFailed || !runtimeReady || !lobbyReady || gameStarted || needsDisc;
     button.hidden = runtimeFailed || roomLaunchFailed || gameStarted;
-    button.textContent = !runtimeReady ? 'Loading…' : !lobbyReady ? 'Connecting…' : roomUrl ? 'Play online' : 'Start';
+    button.textContent = !runtimeReady ? 'Loading…' : needsDisc ? 'Choose your disc image' : !lobbyReady ? 'Connecting…'
+      : roomUrl ? 'Play online' : 'Start';
   };
   try { roomName.value = localStorage.getItem('mkw-room-name') || ''; } catch {}
   window.mkwRoomName = roomName.value;
@@ -597,6 +632,10 @@
         + ', pixel ratio ' + devicePixelRatio,
       'Display refresh: ' + (refreshHz ? '~' + refreshHz.toFixed(1) + ' Hz' : 'unknown'),
       'Detailed logging: ' + (detailedLog ? 'on' : 'off'),
+      // The disc image's file name stays out of the log: it is the player's own.
+      'Game data: ' + (discMode !== 'local' ? discMode || 'undecided' : !discInfo ? 'local disc image, none chosen'
+        : discInfo.failed ? 'local disc image, unreadable'
+        : 'local disc image ' + discInfo.gameId + (discReady ? ', accepted' : ', not accepted')),
       ...diag,
       '',
       '--- console ---',
@@ -691,10 +730,191 @@
     if (!diagEl.hidden) updateDiagnostics();
   })();
 
+  // The game disc. Players bring their own disc image: a worker (mkw_disc_worker.js) reads it on
+  // this device, checks that it is a clean retail dump of the release this build plays, and serves
+  // it to the game (mkw_discfs.js). Nothing is uploaded. A site that serves a staged game folder
+  // (the owner's local setup, tools/stage-web.sh) plays that instead, unless "?disc=local".
+  const REGION_NAMES = { RMCP01: 'PAL', RMCE01: 'NTSC-U', RMCJ01: 'NTSC-J', RMCK01: 'NTSC-K' };
+  const discPanel = document.getElementById('disc-panel');
+  const discStatus = document.getElementById('disc-status');
+  const discPick = document.getElementById('disc-pick');
+  const discReuse = document.getElementById('disc-reuse');
+  const discInput = document.getElementById('disc-file');
+  // The game's file backend reaches this page's disc worker on a channel no other tab shares.
+  const discChannel = 'mkw-disc-' + (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''));
+  let discWorker = null, discInfo = null, buildGameId = '';
+  const setDiscStatus = (text, kind = '') => { discStatus.textContent = text; discStatus.className = kind; };
+  const stagedGamePresent = async () => {
+    try {
+      const manifest = await fetch('game/manifest-v2.txt', { cache: 'no-store' });
+      // A sign-in page instead of the manifest is not a staged game.
+      if (!manifest.ok || !/^f \d+ DATA\/sys\/fst\.bin$/m.test(await manifest.text())) return false;
+      return (await fetch('game/DATA/sys/boot.bin', { method: 'HEAD', cache: 'no-store' })).ok;
+    } catch {
+      return false;
+    }
+  };
+  // Where the browser allows it (showOpenFilePicker), the picked file's handle is kept in
+  // IndexedDB, so a returning player only confirms access instead of finding the file again.
+  const discStore = (mode, action) => new Promise((resolve, reject) => {
+    const request = indexedDB.open('mkw-disc', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('handles');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('handles', mode);
+      const pending = action(transaction.objectStore('handles'));
+      transaction.oncomplete = () => { db.close(); resolve(pending.result); };
+      transaction.onerror = transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  });
+  const saveDiscHandle = (handle) => discStore('readwrite', (store) => store.put(handle, 'disc')).catch(() => {});
+  const loadDiscHandle = () => discStore('readonly', (store) => store.get('disc')).catch(() => null);
+  const forgetDiscHandle = () => discStore('readwrite', (store) => store.delete('disc')).catch(() => {});
+  const checkDisc = () => {
+    discReady = false;
+    if (!discInfo) {
+      // Nothing chosen yet, or still reading.
+    } else if (discInfo.failed) {
+      setDiscStatus(discInfo.message, 'error');
+    } else if (!discInfo.valid) {
+      setDiscStatus(discInfo.name + ': ' + discInfo.reason, 'error');
+    } else if (buildGameId && discInfo.gameId !== buildGameId) {
+      setDiscStatus(discInfo.name + ' is the ' + discInfo.region + ' release (' + discInfo.gameId + '), but this site plays the '
+        + (REGION_NAMES[buildGameId] || '') + ' release (' + buildGameId + '). Choose a disc image of that release.', 'error');
+    } else if (!runtimeReady) {
+      setDiscStatus(discInfo.gameId + ' (' + discInfo.region + ') verified: waiting for the game to load…');
+    } else {
+      discReady = true;
+      setDiscStatus('Mario Kart Wii ' + discInfo.gameId + ' (' + discInfo.region + '), main.dol and StaticR.rel verified, '
+        + discInfo.files + ' files: ' + discInfo.name, 'ok');
+    }
+    updateStartButton();
+  };
+  const openDisc = (file, handle) => {
+    if (gameStarted || !file) return;
+    if (discWorker) discWorker.terminate();
+    discInfo = null;
+    discReuse.hidden = true;
+    checkDisc();
+    setDiscStatus('Reading ' + file.name + '…');
+    const worker = discWorker = new Worker('mkw_disc_worker.js');
+    worker.onerror = (event) => {
+      if (worker !== discWorker) return;
+      discInfo = { failed: true, message: 'The disc reader could not start' + (event.message ? ': ' + event.message : '.') };
+      checkDisc();
+    };
+    worker.onmessage = ({ data }) => {
+      if (worker !== discWorker || !data) return;
+      if (data.type === 'opened') {
+        discInfo = { ...data, name: file.name };
+        diag.push('Disc image: ' + data.gameId + ' ' + (data.region || 'unknown region') + ', main.dol '
+          + (data.dolOk ? 'ok' : 'differs') + ', StaticR.rel ' + (data.relOk ? 'ok' : 'differs') + ', opened in ' + data.ms + ' ms');
+        if (data.valid && handle) saveDiscHandle(handle);
+      } else if (data.type === 'failed') {
+        discInfo = { failed: true, message: file.name + ': ' + data.message };
+      } else {
+        return;
+      }
+      checkDisc();
+    };
+    worker.postMessage({ type: 'open', file, channel: discChannel });
+  };
+  discPick.addEventListener('click', async () => {
+    if (typeof window.showOpenFilePicker !== 'function') {
+      discInput.click();
+      return;
+    }
+    let handle;
+    try {
+      [handle] = await window.showOpenFilePicker({ id: 'mkw-disc', types: [{ description: 'Wii disc image',
+        accept: { 'application/octet-stream': ['.wbfs', '.iso', '.ciso', '.gcm'] } }] });
+    } catch (error) {
+      if (error?.name !== 'AbortError') discInput.click();
+      return;
+    }
+    try {
+      openDisc(await handle.getFile(), handle);
+    } catch (error) {
+      setDiscStatus('That file could not be opened: ' + error, 'error');
+    }
+  });
+  discInput.addEventListener('change', () => openDisc(discInput.files[0], null));
+  overlay.addEventListener('dragover', (event) => {
+    if (discMode === 'local' && !gameStarted) event.preventDefault();
+  });
+  overlay.addEventListener('drop', async (event) => {
+    if (discMode !== 'local' || gameStarted) return;
+    event.preventDefault();
+    const item = [...event.dataTransfer.items].find((entry) => entry.kind === 'file');
+    if (!item) return;
+    // Both must be asked for during the event.
+    const handleRequest = typeof item.getAsFileSystemHandle === 'function' ? item.getAsFileSystemHandle() : null;
+    const file = item.getAsFile();
+    let handle = null;
+    try { handle = await handleRequest; } catch {}
+    openDisc(file, handle?.kind === 'file' ? handle : null);
+  });
+  const restoreDisc = async () => {
+    const handle = await loadDiscHandle();
+    if (!handle || discWorker || gameStarted) return;
+    const useHandle = async () => {
+      try {
+        openDisc(await handle.getFile(), handle);
+      } catch {
+        forgetDiscHandle();
+        discReuse.hidden = true;
+        setDiscStatus(handle.name + ' is no longer where it was. Choose your disc image again.', 'error');
+      }
+    };
+    const permission = (mode) => Promise.resolve(handle[mode]?.({ mode: 'read' })).catch(() => 'denied');
+    if (await permission('queryPermission') === 'granted') {
+      useHandle();
+      return;
+    }
+    // Reading it again needs the player's permission, which only a click can ask for.
+    discReuse.textContent = 'Use ' + handle.name + ' again';
+    discReuse.hidden = false;
+    discReuse.onclick = async () => {
+      if (await permission('requestPermission') === 'granted') useHandle();
+    };
+  };
+  document.getElementById('disc-clear').addEventListener('click', async () => {
+    if (gameStarted && !confirm('Clear the local game data? The game stops and the page reloads. Saves and settings are kept.')) return;
+    if (discWorker) discWorker.terminate();
+    discWorker = null;
+    discInfo = null;
+    discInput.value = '';
+    await forgetDiscHandle();
+    if (gameStarted) {
+      location.reload();
+      return;
+    }
+    discReuse.hidden = true;
+    checkDisc();
+    setDiscStatus('Cleared: this browser no longer keeps access to your disc image. Saves and settings are kept.');
+  });
+  const discProbe = (async () => {
+    if (!discMode) discMode = await stagedGamePresent() ? 'fetch' : 'local';
+    diag.push('Game data: ' + (discMode === 'local' ? 'the player\'s disc image, read in this browser' : 'staged game folder on the server'));
+    updateStartButton();
+    if (discMode !== 'local') return;
+    discPanel.hidden = false;
+    if (typeof Worker !== 'function' || typeof BroadcastChannel !== 'function' || typeof FileReader !== 'function') {
+      discPick.disabled = true;
+      setDiscStatus('This browser cannot read a disc image.', 'error');
+      return;
+    }
+    setDiscStatus('No disc image chosen yet.');
+    await restoreDisc();
+  })();
+
   var Module = {
     canvas: document.getElementById('canvas'),
     preRun: [() => {
       if (!persistentStorageAvailable) ENV.MKW_WEB_SESSION_STORAGE = '1';
+      if (discMode === 'local') ENV.MKW_WEB_DISC = discChannel;
       if (params.has('muted')) ENV.MKW_WEB_MUTED = '1';
       if (params.has('resetsave')) ENV.MKW_WEB_RESET_SAVE = '1';
       if (roomUrl) ENV.MKW_WEB_ROOM = roomUrl;
@@ -723,9 +943,10 @@
     onRuntimeInitialized: () => {
       if (runtimeFailed || roomLaunchFailed) return;
       statusEl.textContent = '';
+      try { buildGameId = Module.UTF8ToString(Module._mkw_web_build_game_id()); } catch {}
       runtimeReady = true;
       invokePendingRoomLaunchCancel();
-      updateStartButton();
+      checkDisc();
     },
     onAbort: (what) => {
       runtimeFailed = true;
@@ -855,9 +1076,14 @@
 
   // Browsers only start audio after a user gesture, so the game waits for this click.
   startButton.addEventListener('click', () => {
-    if (runtimeFailed || !runtimeReady || !lobbyReady || gameStarted) return;
+    if (runtimeFailed || !runtimeReady || !lobbyReady || gameStarted || (discMode === 'local' && !discReady)) return;
     gameStarted = true;
     startButton.disabled = true;
+    if (discMode === 'local') {
+      discPick.disabled = true;
+      discReuse.hidden = true;
+      controlsPanel.insertBefore(discPanel, controlsPanel.querySelector(':scope > .head'));
+    }
     saveRoomName();
     for (const id of ['create-room', 'join-room', 'room-code']) document.getElementById(id).disabled = true;
     if (directRoomJoin) {
@@ -878,7 +1104,7 @@
   });
 
   const loadRuntime = async () => {
-    await Promise.all([graphicsProbe, storageProbe]);
+    await Promise.all([graphicsProbe, storageProbe, discProbe]);
     // The loader compiles a large Wasm module and starts workers. A failed requirement should
     // show its remedy without downloading the game or attempting an unsupported instantiation.
     if (runtimeFailed || missing.length) return;

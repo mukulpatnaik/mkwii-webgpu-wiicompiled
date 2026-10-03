@@ -16,6 +16,7 @@
 #include "web_guest_hooks.h"
 #include "web_guest_profile.h"
 #include "web_performance.h"
+#include "region/guest_region.h"
 
 #include "fiber_manager.h"
 #include "guest_flat_memory.h"
@@ -315,6 +316,12 @@ extern "C" {
 // mkw_fetchfs.js asks which source the /game mount reads (see MountGame).
 EMSCRIPTEN_KEEPALIVE const char* mkw_web_disc_channel() {
     return WebPlatform::g_discChannel.c_str();
+}
+
+// The release this build was translated from (e.g. "RMCE01"): the page accepts only a disc
+// image of that release (shell.html).
+EMSCRIPTEN_KEEPALIVE const char* mkw_web_build_game_id() {
+    return MKW_REGION_GAME_ID;
 }
 }
 
