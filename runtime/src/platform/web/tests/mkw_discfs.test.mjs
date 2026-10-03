@@ -219,6 +219,29 @@ test('a raised priority is re-sent for chunks already requested at a lower one',
   done();
 });
 
+test('only a read the game waits on times out, counted from when it starts waiting', async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const held = [];
+  const { backend, heap, errors, done } = setup({ readTimeout: 100, worker: {
+    hold: (data, index, answer) => { if (data.priority === 0 && index === 0) answer(); else held.push(answer); } } });
+  // The course archive's first chunk now; its chunks 1-2 are read ahead and stay queued.
+  assert.equal(await backend.read(3, 0, 1, 0), 1);
+  await sleep(70);
+  // The game comes to need chunk 2 while it is still queued behind the read ahead, and the
+  // worker answers 140 ms after the read ahead was asked for: longer than the timeout, but only
+  // 70 ms after the game started waiting.
+  const read = backend.read(3, 0, 4, 8);
+  await sleep(70);
+  held.splice(0).forEach((answer) => answer());
+  assert.equal(await read, 4);
+  assert.equal(text(heap.slice(0, 4)), 'stle');
+  assert.ok(!errors.some((line) => /timed out/.test(line)), errors.join('\n'));
+  // A read the game waits on that is never answered still fails.
+  assert.equal(await backend.read(2, 0, 4, 4), -5);
+  assert.ok(errors.some((line) => /test\.bin at 4: disc read timed out/.test(line)));
+  done();
+});
+
 test('a worker error for a chunk is EIO, and the next read asks again', async () => {
   let attempts = 0;
   const { backend, heap, requests, errors, done } = setup({ worker: { fail: () => ++attempts === 1 } });

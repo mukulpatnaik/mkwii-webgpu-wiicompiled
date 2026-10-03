@@ -132,15 +132,20 @@ addToLibrary({
         let pending = inflight.get(id);
         let request = false;
         if (!pending) {
-          pending = {priority};
+          pending = {priority, timer: 0};
           pending.promise = new Promise((resolve, reject) => { pending.resolve = resolve; pending.reject = reject; });
           pending.promise.catch(() => {}); // a prefetched chunk may have no reader
-          pending.timer = setTimeout(() => settle(key, index, null, new Error('disc read timed out')), READ_TIMEOUT_MS);
           inflight.set(id, pending);
           request = true;
         } else if (priority < pending.priority) {
           pending.priority = priority;   // the worker raises the queued job
           request = true;
+        }
+        // Only a read the game is blocked on times out, and its clock starts when the game starts
+        // waiting: read-ahead requests can sit behind each other in the worker's queue for longer
+        // than that on slow storage, and a demand read raised from one must not inherit its age.
+        if (priority === DEMAND && !pending.timer) {
+          pending.timer = setTimeout(() => settle(key, index, null, new Error('disc read timed out')), READ_TIMEOUT_MS);
         }
         if (request && runFirst < 0) runFirst = index;
         if (!request && runFirst >= 0) { runs.push([runFirst, index - 1]); runFirst = -1; }
