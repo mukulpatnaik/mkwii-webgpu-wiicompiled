@@ -1,4 +1,5 @@
 #pragma once
+#include "region/guest_region.h"
 #include "memory.h"
 #include "ppc_runtime.h"
 #include "system_bridge.h"
@@ -6,6 +7,7 @@
 #include "runtime_log.h"
 #ifdef __EMSCRIPTEN__
 #include "platform/web/web_guest_hooks.h"
+#include "platform/web/web_region.h"
 #include "platform/web/web_room_launch.h"
 #include "platform/web/web_guest_profile.h"
 #endif
@@ -35,12 +37,14 @@ inline void ApplyRuntimeCallOptions(uint32_t target, CpuContext* ctx) {
 #if MKW_WEB_GUEST_PROFILE
     WebGuestProfile::Push(target, ctx);
 #endif
+#if MKW_WEB_PAL_HOOKS
     // Follow section creation/update through the engine's ordinary lifecycle.
     if (target == 0x80634FBCu || target == 0x806224F8u) {
         WebRoomLaunch::BeforeGuestCall(target, ctx);
     }
 #endif
-    if (target == 0x8023BD38u) {
+#endif
+    if (target == MKW_GADDR(8023BD38)) {
         // ScnRenderer::createPath receives the post-processing path mask in r4.
         ctx->gpr[4] = RuntimeGameGraphicsOptions::FilterScnRendererPathMask(ctx->gpr[4]);
     }
@@ -50,7 +54,7 @@ inline void ApplyRuntimeCallOptions(uint32_t target, CpuContext* ctx) {
 // separate from pre/post options so the original entry and completion hook are
 // both skipped when the web runtime supplies the result itself.
 MKW_PPC_FORCE_INLINE bool TryHandleRuntimeCall(uint32_t target, CpuContext* ctx) {
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) && MKW_WEB_PAL_HOOKS
     if (target == 0x80622DA0u) {
         return WebRoomLaunch::TryHandleGuestCall(target, ctx);
     }
@@ -73,9 +77,11 @@ MKW_PPC_FORCE_INLINE void CompleteRuntimeCallOptions(uint32_t target, CpuContext
 #if MKW_WEB_GUEST_PROFILE
     WebGuestProfile::Pop(target, ctx);
 #endif
+#if MKW_WEB_PAL_HOOKS
     if (target == 0x80634E44u) {
         WebRoomLaunch::AfterGuestCall(target, ctx);
     }
+#endif
 #else
     (void)target;
     (void)ctx;
@@ -300,7 +306,7 @@ private:
 // Guest address of OSLoadContext, which models rfi-style context restoration
 // and intentionally replaces the full guest register file instead of returning
 // like a normal ABI call. It can never be guarded.
-inline constexpr uint32_t kOSLoadContextAddress = 0x801A1F58u;
+inline constexpr uint32_t kOSLoadContextAddress = MKW_GADDR(801A1F58);
 
 inline bool ShouldPreserveNonvolatileGprsForRawCpuCall(const TranslatedFunctionInfo* info) noexcept {
     return info->kind == FunctionKind::Native && info->address != kOSLoadContextAddress;

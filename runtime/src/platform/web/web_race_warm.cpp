@@ -1,5 +1,6 @@
 #if defined(__EMSCRIPTEN__)
 #include "web_race_warm.h"
+#include "web_region.h"
 
 #include "memory.h"
 
@@ -79,6 +80,7 @@ bool SafeText(const std::string& text) {
 } // namespace
 
 void OnDiscRead(const std::string& path) {
+    if (!MKW_WEB_PAL_HOOKS) return;  // scenario globals below are PAL addresses
     const size_t at = path.find("/Race/Course/");
     if (at == std::string::npos) return;
     if (path == s_lastCourse) return;
@@ -129,6 +131,7 @@ void OnDiscRead(const std::string& path) {
 }
 
 void OnFrame() {
+    if (!MKW_WEB_PAL_HOOKS) return;  // scenario globals below are PAL addresses
     static uint32_t seen = UINT32_MAX, posted = UINT32_MAX, stableFrames = 0;
     static bool booted = false;
     try {
