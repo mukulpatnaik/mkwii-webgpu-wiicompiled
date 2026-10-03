@@ -198,6 +198,43 @@ if(MKW_HAVE_RETRO_REWIND)
     target_precompile_headers(mkw_retro_rewind_functions REUSE_FROM mkw_base_shared)
 endif()
 
+# Browser build: the player's own disc image is read by nod compiled to wasm32-unknown-unknown
+# (src/platform/web/disc-wasm), placed next to WiiCompiled.{html,js,wasm} as mkw_disc.wasm, where
+# the page loads it; stage or deploy it with the rest.
+# MKW_NOD_SOURCE_DIR builds against a local nod checkout instead of the pinned git revision.
+set(MKW_NOD_SOURCE_DIR "" CACHE PATH "Local nod checkout for the browser disc reader (default: the revision pinned in disc-wasm/Cargo.toml)")
+function(mkw_add_web_disc_reader)
+    if(TARGET mkw_web_disc_reader)
+        return()
+    endif()
+    set(web_dir "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web")
+    set(crate_dir "${web_dir}/disc-wasm")
+    set(outputs)
+    find_program(MKW_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin")
+    if(MKW_CARGO)
+        set(cargo_args build --release --target wasm32-unknown-unknown
+            --manifest-path "${crate_dir}/Cargo.toml" --target-dir "${CMAKE_BINARY_DIR}/disc-wasm")
+        if(MKW_NOD_SOURCE_DIR)
+            list(APPEND cargo_args --config "patch.'https://github.com/encounter/nod'.nod.path='${MKW_NOD_SOURCE_DIR}/nod'")
+        else()
+            list(APPEND cargo_args --locked)
+        endif()
+        add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/mkw_disc.wasm"
+            COMMAND ${MKW_CARGO} ${cargo_args}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_BINARY_DIR}/disc-wasm/wasm32-unknown-unknown/release/mkw_disc_wasm.wasm"
+                "${CMAKE_BINARY_DIR}/mkw_disc.wasm"
+            DEPENDS "${crate_dir}/Cargo.toml" "${crate_dir}/Cargo.lock" "${crate_dir}/src/lib.rs"
+            COMMENT "Building the browser disc reader (nod for wasm32-unknown-unknown)"
+            VERBATIM)
+        list(APPEND outputs "${CMAKE_BINARY_DIR}/mkw_disc.wasm")
+    else()
+        message(WARNING "cargo was not found: this web build has no disc reader (mkw_disc.wasm), so it "
+                        "can only play a staged game folder. Install Rust with the wasm32-unknown-unknown target.")
+    endif()
+    add_custom_target(mkw_web_disc_reader DEPENDS ${outputs})
+endfunction()
+
 function(mkw_configure_product target)
     target_sources(${target} PRIVATE $<TARGET_OBJECTS:mkw_runtime_common>)
     # Startup CPU check. Must stay a separate object library so it keeps the
@@ -278,6 +315,8 @@ function(mkw_configure_product target)
     endif()
 
     if(MKW_PLATFORM_WEB)
+        mkw_add_web_disc_reader()
+        add_dependencies(${target} mkw_web_disc_reader)
         # Browser build. main() runs on a pthread so the game loop and synchronous file reads may
         # block; the canvas is transferred to that thread for WebGPU. JSPI lets the WebGPU
         # adapter/device requests be awaited synchronously and carries the guest contexts

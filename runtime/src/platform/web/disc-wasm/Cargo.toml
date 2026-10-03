@@ -1,0 +1,27 @@
+[package]
+name = "mkw-disc-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Reads the player's own Mario Kart Wii disc image in the browser: nod compiled to wasm32, fed by a host read callback"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# nod (MIT OR Apache-2.0), pinned to the commit the browser build was tested with. No C compression
+# backends: ISO, WBFS and CISO need none, and wasm32-unknown-unknown has no C toolchain.
+# runtime/cmake/PublicProducts.cmake can point this at a local checkout (MKW_NOD_SOURCE_DIR) for
+# offline builds.
+nod = { git = "https://github.com/encounter/nod", rev = "ebd80cac99b48a323200d84365e07a58cc27412d", default-features = false }
+
+[profile.release]
+opt-level = 3
+panic = "abort"
+lto = true
+codegen-units = 1
+
+# Built on its own, not as part of any enclosing workspace.
+[workspace]
