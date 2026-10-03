@@ -22,6 +22,7 @@ addToLibrary({
     // Request priorities, lowest first: the game is blocked on it; a race is about to read it;
     // the rest of an archive the game has started reading, or a file it will read later.
     const DEMAND = 0, URGENT = 1, BACKGROUND = 2;
+    const VIDEO_AHEAD = 2;              // chunks read ahead of a playing video
 
     const channel = new BroadcastChannel(channelName);
     const sizes = new Map();            // "/game/DATA/..." -> size
@@ -196,7 +197,9 @@ addToLibrary({
     // wait for the disc: the sound archive's menu banks, the banks a race reads as it starts
     // (19-22, 25-27 and 45-78 MiB, found for mkw_fetchfs.js by logging Luigi Circuit Grand Prix
     // runs; which blocks varies with the characters, so the regions are read whole), and the shared
-    // race archives. About 55 MiB, read in the background once the game starts reading.
+    // race archives. About 55 MiB, read in the background once the game starts reading. Then the
+    // first 2 MiB of each menu video (about 40 MiB), as the staged backend does, so a preview
+    // starts without waiting for the worker.
     let startupWarmed = false;
     function warmStartup(chunkSize) {
       if (startupWarmed) return;
@@ -206,6 +209,11 @@ addToLibrary({
       warm(soundArchive, chunkSize, BACKGROUND, 0, 16 * MiB);
       for (const path of ['Race/Common.szs', 'Scene/UI/Race.szs']) warm(lookup('/game/DATA/files/' + path), chunkSize, BACKGROUND);
       for (const [from, to] of [[19, 22], [25, 27], [45, 78]]) warm(soundArchive, chunkSize, BACKGROUND, from * MiB, to * MiB);
+      for (const key of [...sizes.keys()].sort()) {
+        if (/^\/game\/DATA\/files\/thp\/(button|course|battle)\/[^/]+\.thp$|^\/game\/DATA\/files\/thp\/title\/top_menu\.thp$/.test(key)) {
+          warm(key, chunkSize, BACKGROUND, 0, 2 * MiB);
+        }
+      }
     }
 
     function lookup(path) {
@@ -323,6 +331,9 @@ addToLibrary({
           for (let attempt = 0; ; attempt++) {
             const wait = ensure(key, chunkSize, first, last, DEMAND);
             if (readsWhole(key, size)) warm(key, chunkSize, URGENT);
+            // A video is read front to back while it plays: keep the next chunks coming, so a
+            // frame does not wait for the worker to read one (about 10 ms each).
+            if (/\.thp$/i.test(key)) warm(key, chunkSize, URGENT, (last + 1) * chunkSize, (last + 1 + VIDEO_AHEAD) * chunkSize);
             warmRelated(key, chunkSize);
             warmStartup(chunkSize);
             await wait;

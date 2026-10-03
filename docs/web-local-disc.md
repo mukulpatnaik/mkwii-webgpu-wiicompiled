@@ -34,7 +34,9 @@ returned instead of the manifest does not count as a staged folder.
    waiting / a race is about to need it / background) and the worker serves the most urgent queued
    chunk next. The race prefetch API (`web_race_warm.cpp`'s `mkw-prefetch` channel), the next
    Grand Prix course and final-lap music warmups, and the sound-archive regions a race reads as it
-   starts work as they do for a staged folder.
+   starts work as they do for a staged folder; so do the video ones: a playing video keeps two
+   chunks read ahead, and the first 2 MiB of each menu video are read in the background at
+   start-up.
 5. The menu's video previews (`thp/button`, `thp/course`, `thp/battle` and `thp/title/top_menu.thp`)
    are served with every other frame at half the frame rate, the same files `tools/stage-web.sh`
    stages (`tools/web_menu_videos.py` in the page tooling): they play at the same speed for half

@@ -52,7 +52,7 @@ function setup({ chunkSize = 4, worker: script = {}, cacheLimit, manifestTimeout
           worker.postMessage({ type: 'chunk-error', path: data.path, index, message: 'host read failed' });
           return;
         }
-        const bytes = discFiles[data.path];
+        const bytes = discFiles[data.path] ?? script.bytes?.(data.path);
         if (!bytes) { worker.postMessage({ type: 'chunk-error', path: data.path, index, message: 'no such file' }); return; }
         let chunk = bytes.slice(index * data.chunkSize, (index + 1) * data.chunkSize);
         if (script.rewrite) chunk = script.rewrite(data.path, index, chunk);
@@ -69,7 +69,8 @@ function setup({ chunkSize = 4, worker: script = {}, cacheLimit, manifestTimeout
   const backends = {}, errors = [], heap = new Uint8Array(4096), timers = [];
   let library;
   const fileUrls = { 1: 'manifest.txt', 2: 'DATA/files/test.bin', 3: 'DATA/files/Race/Course/castle_course.szs',
-                     4: 'DATA/files/sound/strm/n_castle_n.brstm', 5: 'DATA/files/missing.bin', 6: 'DATA/sys/fst.bin' };
+                     4: 'DATA/files/sound/strm/n_castle_n.brstm', 5: 'DATA/files/missing.bin', 6: 'DATA/sys/fst.bin',
+                     7: 'DATA/files/thp/title/title.thp' };
   vm.runInNewContext(testSource, {
     addToLibrary(value) { library = value; },
     wasmFS$backends: backends, HEAPU8: heap,
@@ -172,6 +173,24 @@ test('the sound archive regions a race start reads are read ahead in the backgro
     ['revo_kart.brsar', 25, 26, 2],
     ['revo_kart.brsar', 45, 77, 2],
   ]);
+  done();
+});
+
+test('a playing video keeps two chunks read ahead, and menu videos start warm', async () => {
+  const MiB = 1024 * 1024;
+  const withVideos = manifest + `f ${5 * MiB} DATA/files/thp/course/flower.thp\nf ${5 * MiB} DATA/files/thp/title/title.thp\n` +
+    `f ${MiB / 2} DATA/files/thp/title/top_menu.thp\nf ${5 * MiB} DATA/files/thp/ending/ending_normal.thp\n`;
+  const video = new Uint8Array(5 * MiB);
+  const { backend, requests, done } = setup({ chunkSize: MiB, worker: { manifest: withVideos, bytes: () => video,
+    hold: (data, index, answer) => { if (data.priority !== 2) answer(); } } });
+  assert.equal(await backend.read(2, 0, 4, 0), 4);
+  for (let i = 0; i < 10; i++) await tick();
+  const background = requests.filter((r) => r.path.includes('/thp/')).map(({ path, first, last, priority }) => [path.split('/').slice(-2).join('/'), first, last, priority]);
+  assert.deepEqual(background, [['course/flower.thp', 0, 1, 2], ['title/top_menu.thp', 0, 0, 2]]);
+  requests.length = 0;
+  await backend.read(7, 0, 16, 2 * MiB + 5);
+  for (let i = 0; i < 10; i++) await tick();
+  assert.deepEqual(requests.map(({ first, last, priority }) => [first, last, priority]), [[2, 2, 0], [3, 4, 1]]);
   done();
 });
 
