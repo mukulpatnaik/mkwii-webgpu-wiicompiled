@@ -7,7 +7,6 @@
 #include "runtime_log.h"
 #ifdef __EMSCRIPTEN__
 #include "platform/web/web_guest_hooks.h"
-#include "platform/web/web_region.h"
 #include "platform/web/web_room_launch.h"
 #include "platform/web/web_guest_profile.h"
 #endif
@@ -37,13 +36,11 @@ inline void ApplyRuntimeCallOptions(uint32_t target, CpuContext* ctx) {
 #if MKW_WEB_GUEST_PROFILE
     WebGuestProfile::Push(target, ctx);
 #endif
-#if MKW_WEB_PAL_HOOKS
     // Follow section creation/update through the engine's ordinary lifecycle
     // (SectionMgr::LoadSection, Section::Update).
     if (target == MKW_GADDR(80634FBC) || target == MKW_GADDR(806224F8)) {
         WebRoomLaunch::BeforeGuestCall(target, ctx);
     }
-#endif
 #endif
     if (target == MKW_GADDR(8023BD38)) {
         // ScnRenderer::createPath receives the post-processing path mask in r4.
@@ -55,7 +52,7 @@ inline void ApplyRuntimeCallOptions(uint32_t target, CpuContext* ctx) {
 // separate from pre/post options so the original entry and completion hook are
 // both skipped when the web runtime supplies the result itself.
 MKW_PPC_FORCE_INLINE bool TryHandleRuntimeCall(uint32_t target, CpuContext* ctx) {
-#if defined(__EMSCRIPTEN__) && MKW_WEB_PAL_HOOKS
+#if defined(__EMSCRIPTEN__)
     if (target == MKW_GADDR(80622DA0)) {  // Section::AddPageLayer
         return WebRoomLaunch::TryHandleGuestCall(target, ctx);
     }
@@ -80,11 +77,9 @@ MKW_PPC_FORCE_INLINE void CompleteRuntimeCallOptions(uint32_t target, CpuContext
 #if MKW_WEB_GUEST_PROFILE
     WebGuestProfile::Pop(target, ctx);
 #endif
-#if MKW_WEB_PAL_HOOKS
     if (target == MKW_GADDR(80634E44)) {  // SectionMgr::Init
         WebRoomLaunch::AfterGuestCall(target, ctx);
     }
-#endif
 #else
     (void)target;
     (void)ctx;
