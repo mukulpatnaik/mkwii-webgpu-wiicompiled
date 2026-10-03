@@ -239,3 +239,31 @@
 80388DD0 80384A48 EGG@8022D3F0 lfs r0,-0x61D8(r2); EGG@8022D71C lfs r2,-0x61D8(r2); EGG@8022D7A0 lfs r5,-0x61D8(r2); EGG@8022DB0C lfs r31,-0x61D8(r2)   # EGG fog origin (m!=2), 9 sites in RMCE01
 80388DE0 80384A58 EGG@8022DB24 lfs r0,-0x61C8(r2); EGG@8022DEBC lfs r0,-0x61C8(r2); EGG@8022E018 lfs r0,-0x61C8(r2)   # EGG fog span, 3 sites in RMCE01
 80388DF4 80384A6C EGG@8022DE7C lfs r31,-0x61B4(r2); EGG@8022DE90 lfs r30,-0x61B4(r2); EGG@8022DFD8 lfs r31,-0x61B4(r2); EGG@8022DFEC lfs r30,-0x61B4(r2)   # EGG fog origin (m==2), 4 sites in RMCE01
+
+# ================================================================ Batch 4: web build (platform/web)
+# StaticR.rel .bss singleton slots, .data name tables and the RFL default Mii table read by the browser
+# build's race-asset prefetch, benchmark report and invite-room launcher. REL rows by the relocation method
+# above (bss base 0x809B8F20, .data base 0x808AE520). Independent cross-checks, all agreeing with every row:
+# the mkw-sp chunk table (CHUNKS_E) where it maps the word; Wiimm's address port database
+# (wiimms-szs-tools project/src/addr_port.inc @246fdb3, four-region records); and for 809BD728/809BD748/
+# 809C1E38 also mkw-tournament-museum src/symbols.tsv @bb9cd37 (sInstance__7MenuSet, __15SaveDataManager,
+# __9RKContext). The REL .bss layout is not a fixed delta from PAL: SectionMgr is bss+0x45E8 here but
+# +0x4758 in PAL, while RKNet::Controller is +0x49F8 in both.
+809BD70C 809B8F4C Input::Manager::CreateInstance@8051ecd0 lis r3 (ADDR16_HA -> sec6+0x2c); @8051ecd8 lwz r0,0(r3) (ADDR16_LO -> sec6+0x2c = 0x809B8F4C, null check); @8051ece4 li r3,0x415c -> new (the runtime's 0x415c size check); @8051ecf8 lis r4; @8051ecfc stw r3,0(r4) (-> 0x809B8F4C); 167 ADDR16_LO sites (GameScene::calc, ...)   # chunk port agrees
+809BD728 809B8F68 Racedata::CreateInstance@8052b318 lis r3 (ADDR16_HA -> sec6+0x48); @8052b324 lwz r0,0(r3) (ADDR16_LO -> sec6+0x48 = 0x809B8F68, null check); @8052b330 li r3,0x73f0 -> new; @8052b380 addi r3,r26,40; @8052b390 li r6,240; @8052b394 li r7,12 -> __construct_array (12 RacedataPlayer records of 240 bytes at +0x28, the runtime's kPlayerStride); @8052b47c lis r3; @8052b480 stw r26,0(r3) (-> 0x809B8F68); Racedata::DestroyInstance@8052b4dc stw r0,0(r3); 1837 ADDR16_LO sites   # chunk port agrees
+809BD730 809B8F70 Raceinfo::CreateInstance@8052d544 lis r3 (ADDR16_HA -> sec6+0x50); @8052d54c lwz r0,0(r3) (ADDR16_LO -> sec6+0x50 = 0x809B8F70, null check); @8052d558 li r3,76 -> new; @8052d56c lis r4; @8052d570 stw r3,0(r4) (-> 0x809B8F70); Raceinfo::DestroyInstance@8052d5c8 stw r0,0(r3); 761 ADDR16_LO sites   # chunk port agrees
+809BD748 809B8F88 RKSYS::Mgr::CreateInstance@8053e87c lis r3 (ADDR16_HA -> sec6+0x68); @8053e890 lwz r0,0(r3) (ADDR16_LO -> sec6+0x68 = 0x809B8F88, null check); @8053e89c lis r3,2; @8053e8a0 addi r3,r3,0x5008 (=0x25008 -> new, the runtime's save-manager size check); 445 ADDR16_LO sites (Mii::Load, MiiManager::AllowMiiDisplay, ...)   # chunk port agrees
+809C1E38 809BD508 SectionMgr::CreateInstance@80603de4 li r3,156 (0x9c) -> new; @80603dfc lis r4 (ADDR16_HA -> sec6+0x45e8); @80603e00 stw r3,0(r4) (ADDR16_LO -> sec6+0x45e8 = 0x809BD508); 1909 ADDR16_LO sites (GameScene::enter, GameScene::calc, ...)   # chunk port agrees
+809C20D8 809BD918 RKNet::Controller::CreateInstance@806516a4 lis r4 (ADDR16_HA -> sec6+0x49f8); @806516b4 lwz r0,0(r4) (ADDR16_LO -> sec6+0x49f8 = 0x809BD918, null check); @806516c4 li r3,0x29c8 -> new (the runtime's 0x29c8 size check); @806516e0 lis r8; @806516f4 stw r3,0(r8) (-> 0x809BD918); 404 ADDR16_LO sites   # no chunk mapping; Wiimm addr_port agrees
+# Kart archive name tables (REL .data). ArchiveMgr::LoadKartArchive builds "<vehicle><kind>-<driver><suffix>" from four
+# pointer tables at fixed offsets from one base: @8053b91c lis r29 (ADDR16_HA -> sec5+0xbf0); @8053b940 addi r29,r29
+# (ADDR16_LO -> sec5+0xbf0 = 0x808AF110). PAL base 0x808B3960 = 0x808B3A90-0x130, i.e. PAL-0x4850, the same delta as
+# the chunk-mapped word PAL 0x808B3984 -> 0x808AF134 (base+0x24 in both regions). Contents through the table's ADDR32
+# relocations: drivers[0] -> "mr", vehicles[0] -> "sdf_kart", kinds -> "_red","_blue","", suffixes -> "","_2","_4".
+808B3A90 808AF240 ArchiveMgr::LoadKartArchive(playerId)@8053b950 cmpwi r24,48; @8053b960 slwi r0,r24,2; @8053b964 addi r3,r29,0x130 (=0x808AF240, 48 driver-name pointers); @8053b968 lwzx r8,r3,r0 -> snprintf; same in LoadKartArchiveHolder2(playerId)@8053bab8   # base 0x808AF110 above
+808B3B50 808AF300 ArchiveMgr::LoadKartArchive(playerId)@8053b970 cmpwi r23,36; @8053b990 slwi r0,r23,2; @8053b994 addi r6,r29,0x1f0 (=0x808AF300, 36 vehicle-name pointers); @8053b998 lwzx r6,r6,r0; LoadKartArchiveHolder2(playerId)@8053bae8   # base 0x808AF110 above
+808B3BE0 808AF390 ArchiveMgr::LoadKartArchive(playerId)@8053b99c slwi r10,r25,2; @8053b9a0 addi r7,r29,0x280 (=0x808AF390, 3 kind pointers); @8053b9ac lwzx r7,r7,r10; LoadKartArchiveHolder2(playerId)@8053baf4   # base 0x808AF110 above
+808B3BEC 808AF39C ArchiveMgr::LoadKartArchive(playerId)@8053b9a4 slwi r0,r26,2; @8053b9a8 addi r9,r29,0x28c (=0x808AF39C, 3 suffix pointers); @8053b9b0 lwzx r9,r9,r0; LoadKartArchiveHolder2(playerId)@8053bafc   # base 0x808AF110 above
+# RFL's six built-in default Miis (DOL .rodata), 74-byte RFLCharData records with the create ID at +0x18. Not a
+# fixed delta from PAL: .rodata section-relative would give 0x8024C450.
+8024C4D0 8024C1B8 RFL::SearchDefaultData@800ca7b0 lis r31,0x8025; @800ca7b8 addi r31,r31,-0x3e48 (=0x8024C1B8); @800ca7c4 mulli r0,r0,74 (record size); @800ca7c8 add r3,r31,r0; @800ca7cc addi r3,r3,24 (create ID at +0x18) -> ID compare; @800ca7e8 cmplwi r29,6 (six records)   # Wiimm addr_port agrees

@@ -107,6 +107,7 @@ it cannot establish is written out as `UNRESOLVED`, which then fails header gene
 | `SECTION` | A section boundary, taken from the region's own section table. |
 | `SECTION-RELATIVE` | Same offset within the same named section. Bounds-checked; weaker, and labelled as such. |
 | `CHUNK-ONLY` | Chunk-table port with no reference site confirming it. Weakest. |
+| `COMMUNITY` | Hand-added, not produced by the porter: taken from a community four-region port table (Wiimm's `addr_port.inc`) because the region's binary was not available, where the same record reproduces the proven NTSC-U address. Replaced by a real verdict the next time the porter runs with the disc. |
 
 Current spread for RMCK01: 83 `PROVEN`, 10 `CALIBRATED`, 9 `ANCHORED`, 4 `SECTION`,
 6 `SECTION-RELATIVE`, 17 `CHUNK-ONLY`, 0 unresolved; RMCJ01: 90 / 3 / 9 / 4 / 6 / 17 / 0.

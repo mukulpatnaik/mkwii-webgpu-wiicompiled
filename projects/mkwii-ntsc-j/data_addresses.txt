@@ -147,3 +147,23 @@
 80388DD0 80388750 PROVEN @8022D694 (calibrated on E@8022D3F0) forms 0x80388750 (chunk port agrees)
 80388DE0 80388760 PROVEN @8022DDC8 (calibrated on E@8022DB24) forms 0x80388760 (chunk port agrees)
 80388DF4 80388774 PROVEN @8022E120 (calibrated on E@8022DE7C) forms 0x80388774 (chunk port agrees)
+
+# ---------------------------------------------------------------- web build rows, added without the RMCJ01 binary
+# The rows below follow the NTSC-U "Batch 4" rows. They were added by hand because no RMCJ01 disc was available:
+# each is what this porter's binary-independent steps produce for the row (chunk table, section table, anchors;
+# REL reference sites never decode before relocation, so a real run reaches the same verdicts), checked against
+# Wiimm's four-region address port database (wiimms-szs-tools addr_port.inc @246fdb3) and, where listed,
+# mkw-tournament-museum symbols.tsv @bb9cd37. 8024C4D0 is the exception: it is a DOL global the porter proves
+# from its reference site with the binary, and without one its only source is Wiimm's database, so it is labelled
+# COMMUNITY. Re-running port_data_addresses.py --region J with the disc regenerates all of them.
+809BD70C 809BC76C CHUNK-ONLY (no reference site confirmed it: REL sites; Wiimm has no record for this word)
+809BD728 809BC788 CHUNK-ONLY (no reference site confirmed it: REL sites; Wiimm and museum agree)
+809BD730 809BC790 CHUNK-ONLY (no reference site confirmed it: REL sites; Wiimm agrees)
+809BD748 809BC7A8 CHUNK-ONLY (no reference site confirmed it: REL sites; Wiimm and museum agree)
+809C1E38 809C0E98 CHUNK-ONLY (no reference site confirmed it: REL sites; Wiimm and museum agree)
+809C20D8 809C1138 SECTION-RELATIVE same offset in .bss (no chunk mapping, no confirming reference site; Wiimm agrees)
+808B3A90 808B2BF0 ANCHORED +0x10C from chunk-mapped 808B3984 (same offset holds in the verified NTSC-U table; next mapped word 808B5B1C moved by the same amount; Wiimm agrees)
+808B3B50 808B2CB0 ANCHORED +0xC0 from 808B3A90 (same offset holds in the verified NTSC-U table; Wiimm agrees)
+808B3BE0 808B2D40 ANCHORED +0x90 from 808B3B50 (same offset holds in the verified NTSC-U table; Wiimm agrees)
+808B3BEC 808B2D4C ANCHORED +0xC from 808B3BE0 (same offset holds in the verified NTSC-U table; Wiimm agrees)
+8024C4D0 8024BE80 COMMUNITY Wiimm addr_port record PAL 80246028 (.rodata, D4) +0x64A8; the same record gives the binary-proven NTSC-U 8024C1B8; not yet proven from RMCJ01 code
