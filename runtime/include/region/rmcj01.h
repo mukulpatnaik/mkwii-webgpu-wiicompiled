@@ -45,6 +45,8 @@
 #define MKW_F_800A35E0 func_800A3500
 #define MKW_G_800BD860 0x800BD780u  // thunk_0x800bc440
 #define MKW_F_800BD860 func_800BD780
+#define MKW_G_800C6AF0 0x800C6A10u  // RFLiGetCharData
+#define MKW_F_800C6AF0 func_800C6A10
 #define MKW_G_80123f88 0x80123EA8u  // AIRegisterDMACallback
 #define MKW_F_80123f88 func_80123EA8
 #define MKW_G_80123fcc 0x80123EECu  // AIInitDMA
@@ -1301,6 +1303,8 @@
 #define MKW_F_80244DE0 func_80244D00
 #define MKW_G_80244EA0 0x80244DC0u
 #define MKW_F_80244EA0 func_80244DC0
+#define MKW_G_8024C4D0 0x8024BE80u
+#define MKW_F_8024C4D0 func_8024BE80
 #define MKW_G_802574a0 0x802573E0u
 #define MKW_F_802574a0 func_802573E0
 #define MKW_G_802574e0 0x80257420u
@@ -1529,8 +1533,18 @@
 #define MKW_F_80388DE0 func_80388760
 #define MKW_G_80388DF4 0x80388774u
 #define MKW_F_80388DF4 func_80388774
+#define MKW_G_80524438 0x80523DB8u  // 0x80524438
+#define MKW_F_80524438 func_80523DB8
 #define MKW_G_80529D68 0x805296E8u  // MovieManager::PrepareAsync
 #define MKW_F_80529D68 func_805296E8
+#define MKW_G_8052E454 0x8052DDD4u  // Racedata::ResetScenarios
+#define MKW_F_8052E454 func_8052DDD4
+#define MKW_G_80544CD8 0x80544658u  // RKSYS::LicenseMgr::SetCurLicense
+#define MKW_F_80544CD8 func_80544658
+#define MKW_G_80544D10 0x80544690u  // RKSYS::Mgr::CheckLicenseMagic
+#define MKW_F_80544D10 func_80544690
+#define MKW_G_80547034 0x805469B4u  // RKSYS::LicenseMgr::GetRFLCreateID
+#define MKW_F_80547034 func_805469B4
 #define MKW_G_80550CC0 0x80550640u  // THP::PlayerOpen
 #define MKW_F_80550CC0 func_80550640
 #define MKW_G_80550F48 0x805508C8u  // THP::PlayerClose
@@ -1555,6 +1569,20 @@
 #define MKW_F_8055531C func_80554C9C
 #define MKW_G_805653D0 0x80564D50u  // 0x805653d0
 #define MKW_F_805653D0 func_80564D50
+#define MKW_G_805D294C 0x805D2228u  // FriendList::IsUpdated
+#define MKW_F_805D294C func_805D2228
+#define MKW_G_805E32AC 0x805E2B88u  // SectionParams::ResetBattleParams
+#define MKW_F_805E32AC func_805E2B88
+#define MKW_G_805E40A8 0x805E3984u  // SectionParams::ResetLicenseParams
+#define MKW_F_805E40A8 func_805E3984
+#define MKW_G_805FA6E0 0x805F9FBCu  // MiiGroup::LoadStoreMii
+#define MKW_F_805FA6E0 func_805F9FBC
+#define MKW_G_805FA930 0x805FA20Cu  // MiiGroup::GetMii
+#define MKW_F_805FA930 func_805FA20C
+#define MKW_G_8061B490 0x8061AC04u  // SectionPad::SetID
+#define MKW_F_8061B490 func_8061AC04
+#define MKW_G_8061BE40 0x8061B5B4u  // SectionPad::CalculateID
+#define MKW_F_8061BE40 func_8061B5B4
 #define MKW_G_806224F8 0x80621C44u  // Section::Update
 #define MKW_F_806224F8 func_80621C44
 #define MKW_G_80622DA0 0x806224ECu  // Section::AddPageLayer
@@ -1563,8 +1591,20 @@
 #define MKW_F_80634E44 func_80634590
 #define MKW_G_80634FBC 0x80634708u  // SectionMgr::LoadSection
 #define MKW_F_80634FBC func_80634708
+#define MKW_G_80635A3C 0x80635188u  // SectionMgr::SetNextSection
+#define MKW_F_80635A3C func_80635188
+#define MKW_G_80635AC8 0x80635214u  // SectionMgr::RequestSceneChange
+#define MKW_F_80635AC8 func_80635214
 #define MKW_G_80654B00 0x8065416Cu  // RKNet::PacketMgr::ProcessLagFrames
 #define MKW_F_80654B00 func_8065416C
+#define MKW_G_80655C10 0x8065527Cu  // RKNet::Controller::Init
+#define MKW_F_80655C10 func_8065527C
+#define MKW_G_806561A8 0x80655814u  // RKNet::Controller::ScheduleShutdown
+#define MKW_F_806561A8 func_80655814
+#define MKW_G_80656D9C 0x80656408u  // RKNet::Controller::CanExchangeFriendData
+#define MKW_F_80656D9C func_80656408
+#define MKW_G_808516BC 0x80850D28u  // Pages::MainMenu::ResetSectionParamsAndRacedataScenario1
+#define MKW_F_808516BC func_80850D28
 #define MKW_G_8088f400 0x8088EA6Cu
 #define MKW_F_8088f400 func_8088EA6C
 #define MKW_G_8088f704 0x8088ED70u
@@ -1581,10 +1621,14 @@
 #define MKW_F_808B3BEC func_808B2D4C
 #define MKW_G_808B4C20 0x808B3D80u
 #define MKW_F_808B4C20 func_808B3D80
+#define MKW_G_809BD70C 0x809BC76Cu
+#define MKW_F_809BD70C func_809BC76C
 #define MKW_G_809BD728 0x809BC788u
 #define MKW_F_809BD728 func_809BC788
 #define MKW_G_809BD730 0x809BC790u
 #define MKW_F_809BD730 func_809BC790
+#define MKW_G_809BD748 0x809BC7A8u
+#define MKW_F_809BD748 func_809BC7A8
 #define MKW_G_809BEBA0 0x809BDC00u
 #define MKW_F_809BEBA0 func_809BDC00
 #define MKW_G_809BEBA4 0x809BDC04u
@@ -1601,5 +1645,9 @@
 #define MKW_F_809C1830 func_809C0890
 #define MKW_G_809C183C 0x809C089Cu
 #define MKW_F_809C183C func_809C089C
+#define MKW_G_809C1E38 0x809C0E98u
+#define MKW_F_809C1E38 func_809C0E98
+#define MKW_G_809C20D8 0x809C1138u
+#define MKW_F_809C20D8 func_809C1138
 #define MKW_G_809C2898 0x809C18F8u
 #define MKW_F_809C2898 func_809C18F8

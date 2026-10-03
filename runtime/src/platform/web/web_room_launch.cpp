@@ -15,17 +15,19 @@
 #include <emscripten/emscripten.h>
 
 namespace {
-// Original RMCP01 service ABI. These are engine calls and configuration fields,
+// The game's own service ABI. These are engine calls and configuration fields,
 // not UI button handlers. The guest still owns scene/page creation and networking.
-constexpr uint32_t kSectionManagerSlot = 0x809c1e38;
-constexpr uint32_t kSaveManagerSlot = 0x809bd748;
-constexpr uint32_t kRaceDataSlot = 0x809bd728;
-constexpr uint32_t kInputManagerSlot = 0x809bd70c;
-constexpr uint32_t kNetworkControllerSlot = 0x809c20d8;
-constexpr uint32_t kSectionInit = 0x80634e44;
-constexpr uint32_t kSectionCreate = 0x80634fbc;
-constexpr uint32_t kSectionUpdate = 0x806224f8;
-constexpr uint32_t kAddPageLayer = 0x80622da0;
+// Addresses are PAL identities (region/guest_region.h), resolved per region.
+constexpr uint32_t kSectionManagerSlot = MKW_GADDR(809C1E38);     // SectionMgr instance
+constexpr uint32_t kSaveManagerSlot = MKW_GADDR(809BD748);        // RKSYS::Mgr instance
+constexpr uint32_t kRaceDataSlot = MKW_GADDR(809BD728);           // Racedata instance
+constexpr uint32_t kInputManagerSlot = MKW_GADDR(809BD70C);       // Input::Manager instance
+constexpr uint32_t kNetworkControllerSlot = MKW_GADDR(809C20D8);  // RKNet::Controller instance
+constexpr uint32_t kRflManagerSlot = MKW_GADDR(80386298);         // RFL manager (RFL::iGetManager)
+constexpr uint32_t kSectionInit = MKW_GADDR(80634E44);            // SectionMgr::Init
+constexpr uint32_t kSectionCreate = MKW_GADDR(80634FBC);          // SectionMgr::LoadSection
+constexpr uint32_t kSectionUpdate = MKW_GADDR(806224F8);          // Section::Update
+constexpr uint32_t kAddPageLayer = MKW_GADDR(80622DA0);           // Section::AddPageLayer
 constexpr uint32_t kOnlineSection = 0x55;
 constexpr uint32_t kTitleSection = 0x3f;
 constexpr uint32_t kConnectPage = 0x84;
@@ -156,8 +158,9 @@ std::vector<uint16_t> LobbyNameUnits() {
 // The ID stays the same, so the saved profile is unchanged and still resolves to the default Mii
 // when no database record exists. Nothing here is written to the NAND.
 void AddDatabaseMii(CpuContext* cpu, uint32_t createId, const std::vector<uint16_t>& name) {
-    constexpr uint32_t kDefaultTable = 0x8024c4d0, kRecord = 74, kDefaults = 6, kSlots = 100;
-    const uint32_t state = Memory::Read32(cpu->gpr[13] - 26984);
+    // RFL's built-in default Miis, as RFL::SearchDefaultData walks them.
+    constexpr uint32_t kDefaultTable = MKW_GADDR(8024C4D0), kRecord = 74, kDefaults = 6, kSlots = 100;
+    const uint32_t state = Memory::Read32(kRflManagerSlot);
     if (!state || !Memory::Contains(state, 0x1b40)) {
         std::printf("[room-launch] Mii database: RFL state not found\n");
         return;
@@ -190,7 +193,7 @@ void AddDatabaseMii(CpuContext* cpu, uint32_t createId, const std::vector<uint16
     uint32_t slot = kSlots;
     unsigned filled = 0;
     for (uint32_t i = 0; i < kSlots; ++i) {
-        if (Call(cpu, 0x800c6af0, {i})) ++filled; else if (slot == kSlots) slot = i;
+        if (Call(cpu, MKW_GADDR(800C6AF0), {i})) ++filled; else if (slot == kSlots) slot = i;  // RFLiGetCharData
     }
     std::printf("[room-launch] Mii database at %08x flags %02x->%02x: %u of %u slots filled, first free %u\n", database,
                 flags, Memory::Read8(state + 6972), filled, kSlots, slot);
@@ -202,7 +205,7 @@ void AddDatabaseMii(CpuContext* cpu, uint32_t createId, const std::vector<uint16
         Memory::Write8(target + 2 + i * 2, static_cast<uint8_t>(unit >> 8));
         Memory::Write8(target + 3 + i * 2, static_cast<uint8_t>(unit));
     }
-    const bool accepted = Call(cpu, 0x800c6af0, {slot}) != 0;
+    const bool accepted = Call(cpu, MKW_GADDR(800C6AF0), {slot}) != 0;  // RFLiGetCharData
     std::printf("[room-launch] Mii database slot %u written; game now sees it as %s\n", slot,
                 accepted ? "filled" : "EMPTY");
     if (!accepted) return;
@@ -241,9 +244,9 @@ void PrepareBoot(CpuContext* cpu) {
     }
 
     uint32_t license = Memory::Read16(save + 0x36);
-    if (license >= 4 || !Call(cpu, 0x80544d10, {save, license})) {
+    if (license >= 4 || !Call(cpu, MKW_GADDR(80544D10), {save, license})) {  // RKSYS::Mgr::CheckLicenseMagic
         license = 0;
-        while (license < 4 && !Call(cpu, 0x80544d10, {save, license})) ++license;
+        while (license < 4 && !Call(cpu, MKW_GADDR(80544D10), {save, license})) ++license;  // RKSYS::Mgr::CheckLicenseMagic
     }
     if (license == 4) {
         Manual("Create a game profile first. You can then reopen the invite.");
@@ -251,9 +254,9 @@ void PrepareBoot(CpuContext* cpu) {
     }
 
     // The same profile/Mii services used by the game's native -l launch path.
-    Call(cpu, 0x80544cd8, {save, license});
+    Call(cpu, MKW_GADDR(80544CD8), {save, license});  // RKSYS::LicenseMgr::SetCurLicense
     const uint32_t licenseObject = save + 0x38 + license * 0x93f0;
-    const uint32_t createId = Call(cpu, 0x80547034, {licenseObject});
+    const uint32_t createId = Call(cpu, MKW_GADDR(80547034), {licenseObject});  // RKSYS::LicenseMgr::GetRFLCreateID
     if (!Memory::Contains(createId, 8)) {
         Manual("Choose a Mii for your game profile, then reopen the invite.");
         return;
@@ -261,24 +264,24 @@ void PrepareBoot(CpuContext* cpu) {
     if (const std::vector<uint16_t> lobbyName = LobbyNameUnits(); !lobbyName.empty()) {
         AddDatabaseMii(cpu, createId, lobbyName);
     }
-    Call(cpu, 0x805fa6e0, {params + 0x238, 0, createId});
-    if (!Call(cpu, 0x805fa930, {params + 0x238, 0})) {
+    Call(cpu, MKW_GADDR(805FA6E0), {params + 0x238, 0, createId});  // MiiGroup::LoadStoreMii
+    if (!Call(cpu, MKW_GADDR(805FA930), {params + 0x238, 0})) {  // MiiGroup::GetMii
         Manual("Choose a Mii for your game profile, then reopen the invite.");
         return;
     }
     Memory::Write8(params + 0x4e8, static_cast<uint8_t>(license));
-    Call(cpu, 0x805e40a8, {params});
+    Call(cpu, MKW_GADDR(805E40A8), {params});  // SectionParams::ResetLicenseParams
 
     // Preserve the non-UI setup normally performed on MainMenu activation,
     // then apply its one-player online category and scenario configuration.
-    Call(cpu, 0x8052e454, {raceData}); // Racedata::ResetScenarios.
+    Call(cpu, MKW_GADDR(8052E454), {raceData}); // Racedata::ResetScenarios.
     Memory::Write32(params + 0x124, 1); // Local player count.
     Memory::Write32(params + 0x60, 0); // VS race number.
-    Call(cpu, 0x805e32ac, {params}); // SectionParams::ResetBattleParams.
+    Call(cpu, MKW_GADDR(805E32AC), {params}); // SectionParams::ResetBattleParams.
     Memory::Write32(params + 0x74, 2); // Both karts and bikes.
     Memory::Write32(params + 0x128, 4); // One-player Nintendo WFC category.
     // This helper is independent of a MainMenu page object.
-    Call(cpu, 0x808516bc, {0, 1});
+    Call(cpu, MKW_GADDR(808516BC), {0, 1});  // MainMenu::ResetSectionParamsAndRacedataScenario1
     if (cancelled.load(std::memory_order_relaxed)) {
         Manual("Continuing through the game menus manually.");
         return;
@@ -298,10 +301,10 @@ bool RegisterController(CpuContext* cpu, uint32_t manager) {
     if (!controllerAssigned) {
         // Scene entry resets holders. Register after that reset, before the
         // first selectable page is activated. No input state is synthesized.
-        Call(cpu, 0x80524438, {input, 0, 3, 0});
+        Call(cpu, MKW_GADDR(80524438), {input, 0, 3, 0});  // Input::Manager holder setup
         controllerAssigned = true;
     }
-    const uint32_t controllerId = Call(cpu, 0x8061be40, {input + 4});
+    const uint32_t controllerId = Call(cpu, MKW_GADDR(8061BE40), {input + 4});  // SectionPad::CalculateID
     if (!(controllerId & 0xff00)) {
         if (!controllerNoticeShown) {
             Status("Connect a controller or enable keyboard controls to continue.", "loading");
@@ -309,7 +312,7 @@ bool RegisterController(CpuContext* cpu, uint32_t manager) {
         }
         return false;
     }
-    Call(cpu, 0x8061b490, {manager + 0x34, 0, controllerId});
+    Call(cpu, MKW_GADDR(8061B490), {manager + 0x34, 0, controllerId});  // SectionPad::SetID
     controllerRegistered = true;
     Status("Preparing online play…", "loading");
     std::printf("[room-launch] controller registered: id=%03x\n", controllerId);
@@ -322,12 +325,12 @@ void Update(CpuContext* cpu) {
     if (!section) return;
     if (cancelled.load(std::memory_order_relaxed)) {
         const uint32_t network = Object(kNetworkControllerSlot, 0x29c8);
-        if (network) Call(cpu, 0x806561a8, {network}); // ScheduleShutdown.
+        if (network) Call(cpu, MKW_GADDR(806561A8), {network}); // ScheduleShutdown.
         // Return through the ordinary scene lifecycle. No input or delayed
         // automatic action remains after the manual handoff.
         Memory::Write32(manager + 8, kNoPage);
-        Call(cpu, 0x80635a3c, {manager, 0x41, 0});
-        Call(cpu, 0x80635ac8, {manager, 0, 0});
+        Call(cpu, MKW_GADDR(80635A3C), {manager, 0x41, 0});  // SectionMgr::SetNextSection
+        Call(cpu, MKW_GADDR(80635AC8), {manager, 0, 0});  // SectionMgr::RequestSceneChange
         Manual("Continuing through the game menus manually.");
         return;
     }
@@ -350,11 +353,11 @@ void Update(CpuContext* cpu) {
         }
         // Despite its name, IsUpdated means friend-data changes are pending.
         // Match the native connection prerequisite: drain those changes first.
-        if (Call(cpu, 0x805d294c, {friends})) return;
+        if (Call(cpu, MKW_GADDR(805D294C), {friends})) return;  // FriendList::IsUpdated
         // Play online authorises this profile's exchange with the invite's own
         // relay. Start the real async login service without the Nintendo UI or
         // changing the saved Nintendo data-consent preferences.
-        Call(cpu, 0x80655c10, {network, 1});
+        Call(cpu, MKW_GADDR(80655C10), {network, 1});  // RKNet::Controller::Init
         SetPhase(Phase::Connecting, "Connecting to online play…");
         std::printf("[room-launch] network login service started\n");
     }
@@ -370,7 +373,8 @@ void Update(CpuContext* cpu) {
             Fail(message);
             return;
         }
-        if (Memory::Read32(network + 0x28) != kNetworkIdle || !Call(cpu, 0x80656d9c, {network})) return;
+        // RKNet::Controller::CanExchangeFriendData.
+        if (Memory::Read32(network + 0x28) != kNetworkIdle || !Call(cpu, MKW_GADDR(80656D9C), {network})) return;
         const uint32_t search = Page(section, kSearchPage, 0x1d04);
         if (!search) {
             Fail("The race lobby could not be opened. Reload to try again.");
