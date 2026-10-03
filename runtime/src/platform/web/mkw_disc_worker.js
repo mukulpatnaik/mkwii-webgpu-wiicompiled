@@ -32,6 +32,8 @@ const REGIONS = {
 // disc_sys selectors and the names the extracted layout (nodtool extract) gives these files.
 const SYSTEM_FILES = [['boot.bin', 3], ['bi2.bin', 4], ['apploader.img', 5], ['fst.bin', 2], ['main.dol', 1]];
 const MAX_CHUNK = 16 * 1024 * 1024;
+// The most chunks one request may queue (mkw_discfs.js asks for at most a few dozen 1 MiB chunks).
+const MAX_REQUEST_CHUNKS = 4096;
 
 let wasmReady = null;
 let exports = null;
@@ -266,7 +268,17 @@ function serve(name) {
       if (typeof path !== 'string' || !Number.isSafeInteger(chunkSize) || chunkSize <= 0 ||
           chunkSize > MAX_CHUNK || !Number.isSafeInteger(first) || !Number.isSafeInteger(last) ||
           first < 0 || last < first) return;
-      for (let index = first; index <= last; index++) enqueue(path, chunkSize, index, Number(priority) || 0);
+      // Only chunks the file has are queued. A range that starts past its end, or names no file,
+      // queues its first chunk alone, which is answered with the error in turn.
+      const entry = entries && entries.get(path);
+      const end = Math.min(last, entry ? Math.max(first, Math.ceil(entry.size / chunkSize) - 1) : first);
+      if (end - first >= MAX_REQUEST_CHUNKS) {
+        stats.errors++;
+        channel.postMessage({type: 'chunk-error', path, index: first,
+                             message: 'too many chunks in one request: ' + (end - first + 1)});
+        return;
+      }
+      for (let index = first; index <= end; index++) enqueue(path, chunkSize, index, Number(priority) || 0);
       schedule();
     }
   };

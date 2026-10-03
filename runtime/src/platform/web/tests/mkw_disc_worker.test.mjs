@@ -241,6 +241,31 @@ test('queued chunks are served most urgent first, and bad requests answer with a
   assert.match(worker.received.find((m) => m.type === 'chunk-error' && m.index === 30).message, /past the end/);
 });
 
+test('a request queues only the chunks its file has, and an absurd range is refused', { skip: !wasmBytes && 'no disc wasm built' }, async () => {
+  const { image } = syntheticDisc();
+  const worker = startWorker();
+  await worker.open(memoryFile(image));
+  const path = 'DATA/files/Race/Course/castle_course.szs';  // 70000 bytes: chunks 0-2 of 32 KiB
+  worker.game.postMessage({ type: 'read', path, chunkSize: 32768, first: 1, last: Number.MAX_SAFE_INTEGER, priority: 0 });
+  worker.game.postMessage({ type: 'read', path, chunkSize: 32768, first: 1e12, last: 1e12 + 5, priority: 0 });
+  worker.game.postMessage({ type: 'read', path, chunkSize: 1, first: 0, last: 69999, priority: 0 });
+  worker.game.postMessage({ type: 'read', path: 'DATA/files/missing.bin', chunkSize: 32768, first: 0, last: 1e9, priority: 0 });
+  worker.game.postMessage({ type: 'read', path: 'DATA/files/opening.bnr', chunkSize: 32768, first: 0, last: 0, priority: 2 });
+  await worker.waitFor((m) => m.path === 'DATA/files/opening.bnr');
+  for (let i = 0; i < 20; i++) await tick();
+  const answers = worker.received.filter((m) => m.type === 'chunk' || m.type === 'chunk-error')
+    .map((m) => [m.type, m.path.split('/').pop(), m.index]);
+  assert.deepEqual(answers.filter(([, name]) => name === 'castle_course.szs').sort(), [
+    ['chunk', 'castle_course.szs', 1],
+    ['chunk', 'castle_course.szs', 2],
+    ['chunk-error', 'castle_course.szs', 0],
+    ['chunk-error', 'castle_course.szs', 1e12],
+  ]);
+  assert.match(worker.received.find((m) => m.type === 'chunk-error' && m.index === 0 && m.path === path).message, /too many chunks/);
+  assert.match(worker.received.find((m) => m.type === 'chunk-error' && m.index === 1e12).message, /past the end/);
+  assert.deepEqual(answers.filter(([, name]) => name === 'missing.bin'), [['chunk-error', 'missing.bin', 0]]);
+});
+
 test('a file that is not a disc image fails with a readable reason', { skip: !wasmBytes && 'no disc wasm built' }, async () => {
   const worker = startWorker();
   const result = await worker.open(memoryFile(Buffer.alloc(0x10000), 'holiday.rvz'));
