@@ -25,7 +25,7 @@ if(EXISTS "${DATA_INIT_BLOB_ASM}" AND MKW_PLATFORM_WEB)
     file(STRINGS "${DATA_INIT_BLOB_ASM}" MKW_BLOB_LINES REGEX "^(\\.globl|\\.incbin) ")
     set(MKW_BLOB_CPP "// Generated at configure time from data_sections_init_blobs.S for WebAssembly.\n#include <cstdint>\n")
     foreach(line IN LISTS MKW_BLOB_LINES)
-        if(line MATCHES "^\\.globl _(.+)$")
+        if(line MATCHES "^\\.globl _?(.+)$")  # Mach-O prefixes symbols with "_", ELF does not
             set(MKW_BLOB_SYMBOL "${CMAKE_MATCH_1}")
         elseif(line MATCHES "^\\.incbin \"(.+)\"$")
             string(APPEND MKW_BLOB_CPP
