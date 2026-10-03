@@ -327,7 +327,7 @@ function(mkw_configure_product target)
         # (HostContext, mkw_fibers.js), which all run on that one thread. WASMFS provides the lazy
         # fetch-backed disc mount (web_platform.cpp).
         set_target_properties(${target} PROPERTIES SUFFIX ".html"
-            LINK_DEPENDS "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js;${MKW_RUNTIME_SOURCE_DIR}/assets/pipeline/initial_pipeline_cache.db")
+            LINK_DEPENDS "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_discfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js;${MKW_RUNTIME_SOURCE_DIR}/assets/pipeline/initial_pipeline_cache.db")
         set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS
             "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_benchmark.js"
             "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js")
@@ -335,6 +335,7 @@ function(mkw_configure_product target)
             --use-port=emdawnwebgpu -sJSPI -sJSPI_EXPORTS=mkw_fiber_entry -sPROXY_TO_PTHREAD
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js"
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js"
+            "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_discfs.js"
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_benchmark.js"
             -sOFFSCREENCANVAS_SUPPORT "-sOFFSCREENCANVASES_TO_PTHREAD=#canvas"
             -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=536870912 -sMAXIMUM_MEMORY=2147483648

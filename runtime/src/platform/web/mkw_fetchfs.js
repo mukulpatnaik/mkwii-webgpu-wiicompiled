@@ -14,8 +14,13 @@
 addToLibrary({
   _wasmfs_create_fetch_backend_js__deps: [
     '$wasmFS$backends', '_wasmfs_fetch_get_file_url', '_wasmfs_fetch_get_chunk_size',
+    '$UTF8ToString', '$mkwCreateDiscBackend', 'mkw_web_disc_channel',
   ],
   _wasmfs_create_fetch_backend_js: function(backend) {
+    // A disc image the player picked in the page replaces the staged copy (mkw_discfs.js).
+    const discChannel = typeof _mkw_web_disc_channel === 'function' ? UTF8ToString(_mkw_web_disc_channel()) : '';
+    if (discChannel) return mkwCreateDiscBackend(backend, discChannel);
+
     const CACHE_LIMIT = 384 * 1024 * 1024;
 
     // The backend must be registered before this function yields (the proxy starts calling it
