@@ -63,6 +63,9 @@ constexpr uint32_t kFetchChunkSize = 1u << 20;
 
 // The page's BroadcastChannel to its disc reader worker, or empty for a staged game folder.
 std::string g_discChannel;
+// For a staged game folder, the copy of game/manifest-v2.txt the page already downloaded (a blob:
+// URL), or empty to download it.
+std::string g_manifestUrl;
 
 // Entries created inside a fetch-backed directory are fetch-backed themselves (their URL is
 // derived from the path), so ordinary mkdir/open build the tree.
@@ -80,6 +83,9 @@ void MountGame() {
     // Read on the WASMFS worker when the backend is created (mkw_fetchfs.js), so set it first.
     if (const char* channel = std::getenv("MKW_WEB_DISC"); channel && *channel) {
         g_discChannel = channel;
+    }
+    if (const char* manifestUrl = std::getenv("MKW_WEB_MANIFEST_URL"); manifestUrl && *manifestUrl) {
+        g_manifestUrl = manifestUrl;
     }
     const bool localDisc = !g_discChannel.empty();
     backend_t fetch = wasmfs_create_fetch_backend("game", kFetchChunkSize);
@@ -316,6 +322,11 @@ extern "C" {
 // mkw_fetchfs.js asks which source the /game mount reads (see MountGame).
 EMSCRIPTEN_KEEPALIVE const char* mkw_web_disc_channel() {
     return WebPlatform::g_discChannel.c_str();
+}
+
+// The staged manifest the page already has, as a blob: URL, or "" (mkw_fetchfs.js).
+EMSCRIPTEN_KEEPALIVE const char* mkw_web_manifest_url() {
+    return WebPlatform::g_manifestUrl.c_str();
 }
 
 // The release this build was translated from (e.g. "RMCE01"): the page accepts only a disc

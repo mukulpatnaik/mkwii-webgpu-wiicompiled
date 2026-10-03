@@ -9,11 +9,13 @@ and the two disc reader files below, none of which contain game data.
 | Mode | When | Source |
 |---|---|---|
 | Local disc image (default) | the site has no staged game folder, or `?disc=local` | the file the player picks (WBFS, ISO or CISO) |
-| Staged game folder | `game/manifest-v2.txt` and `game/DATA/sys/boot.bin` are served next to the page, or `?disc=fetch` | the extracted disc under `game/` (`tools/stage-web.sh` in the page tooling) |
+| Staged game folder | `game/manifest-v2.txt` and the disc's `boot.bin` (`game/DATA/sys/boot.bin`, or the file pack the manifest puts it in) are served next to the page, or `?disc=fetch` | the extracted disc under `game/` (`tools/stage-web.sh` in the page tooling) |
 
 The page probes for the staged folder before the game loads, so the owner's local setup keeps
 working unchanged, and a site without `game/` asks each player for their disc. A sign-in page
-returned instead of the manifest does not count as a staged folder.
+returned instead of the manifest does not count as a staged folder. The page hands the manifest it
+downloaded for the probe to the game's file backend (`MKW_WEB_MANIFEST_URL`, a `blob:` URL), so
+it is not downloaded twice.
 
 ## How it works
 

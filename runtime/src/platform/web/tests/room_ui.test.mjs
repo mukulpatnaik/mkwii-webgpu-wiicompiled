@@ -90,12 +90,14 @@ const workingGpu = {
 
 // By default the page is served next to a staged game folder (tools/stage-web.sh), so it plays
 // that and asks for no disc image; the disc tests at the end serve no game folder.
-const stagedSiteFetch = async (url, options = {}) => {
-  if (url === 'game/manifest-v2.txt') return { ok: true, text: async () => 'd DATA\nf 10 DATA/sys/fst.bin\n' };
-  if (url === 'game/DATA/sys/boot.bin' && options.method === 'HEAD') return { ok: true };
-  throw new Error('unexpected fetch');
+const stagedManifest = 'd DATA\nf 10 DATA/sys/fst.bin\nf 1088 DATA/sys/boot.bin\n';
+const siteFetch = (files, requests = []) => async (url, options = {}) => {
+  requests.push([options.method || 'GET', url]);
+  if (!(url in files)) return { ok: false, status: 404, arrayBuffer: async () => new TextEncoder().encode('Not found').buffer };
+  return { ok: true, arrayBuffer: async () => new TextEncoder().encode(files[url]).buffer };
 };
-const noGameFolderFetch = async () => ({ ok: false, status: 404, text: async () => 'Not found' });
+const stagedSiteFetch = siteFetch({ 'game/manifest-v2.txt': stagedManifest, 'game/DATA/sys/boot.bin': '' });
+const noGameFolderFetch = siteFetch({});
 
 function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: workingGpu, userAgent: 'test' }, pageOverride = {}) {
   const ids = [
@@ -144,6 +146,8 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
   const context = vm.createContext({
     URL,
     URLSearchParams,
+    Blob,
+    TextDecoder,
     AbortSignal,
     WebSocket: FakeWebSocket,
     document,
@@ -800,6 +804,45 @@ test('without a game folder the page asks for a disc image and names its channel
   context.Module.onRuntimeInitialized();
   assert.equal(elements.get('start').disabled, true);
   assert.equal(elements.get('start').textContent, 'Choose your disc image');
+});
+
+test('the probe hands the manifest it downloaded to the game instead of a second download', async () => {
+  const requests = [];
+  const { context } = setupRoomPage('', { gpu: workingGpu, userAgent: 'test' },
+    { fetch: siteFetch({ 'game/manifest-v2.txt': stagedManifest, 'game/DATA/sys/boot.bin': '' }, requests) });
+  await settle();
+  context.Module.preRun[0]();
+  assert.deepEqual(requests, [['GET', 'game/manifest-v2.txt'], ['HEAD', 'game/DATA/sys/boot.bin']]);
+  assert.match(context.ENV.MKW_WEB_MANIFEST_URL, /^blob:/);
+  const { resolveObjectURL } = await import('node:buffer');
+  assert.equal(await resolveObjectURL(context.ENV.MKW_WEB_MANIFEST_URL).text(), stagedManifest);
+});
+
+test('a staged folder whose boot.bin is only in a file pack is found through the pack', async () => {
+  const pack = 'file-packs/' + 'ab'.repeat(32) + '.bin';
+  const manifest = stagedManifest + 'p ' + JSON.stringify(['DATA/sys/boot.bin', pack, 0, 1088]).replaceAll(',', ', ') + '\n';
+  const requests = [];
+  const { context, elements } = setupRoomPage('', { gpu: workingGpu, userAgent: 'test' },
+    { fetch: siteFetch({ 'game/manifest-v2.txt': manifest, ['game/' + pack]: '' }, requests) });
+  await settle();
+  context.Module.preRun[0]();
+  assert.deepEqual(requests, [['GET', 'game/manifest-v2.txt'], ['HEAD', 'game/' + pack]]);
+  assert.equal(context.ENV.MKW_WEB_DISC, undefined);
+  assert.match(context.ENV.MKW_WEB_MANIFEST_URL, /^blob:/);
+  assert.equal(elements.get('disc-panel').hidden, true);
+});
+
+test('a manifest without the files it lists is not a staged folder', async () => {
+  const pack = 'file-packs/' + 'ab'.repeat(32) + '.bin';
+  const manifest = stagedManifest + 'p ' + JSON.stringify(['DATA/sys/boot.bin', pack, 0, 1088]) + '\n';
+  for (const files of [{ 'game/manifest-v2.txt': stagedManifest }, { 'game/manifest-v2.txt': manifest, 'game/DATA/sys/boot.bin': '' }]) {
+    const { context, elements } = setupRoomPage('', { gpu: workingGpu, userAgent: 'test' }, { fetch: siteFetch(files) });
+    await settle();
+    context.Module.preRun[0]();
+    assert.match(context.ENV.MKW_WEB_DISC, /^mkw-disc-/);
+    assert.equal(context.ENV.MKW_WEB_MANIFEST_URL, undefined);
+    assert.equal(elements.get('disc-panel').hidden, false);
+  }
 });
 
 test('?disc=fetch keeps the staged folder even when the probe would find none', async () => {

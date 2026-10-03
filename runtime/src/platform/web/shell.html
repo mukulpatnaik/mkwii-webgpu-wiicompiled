@@ -745,12 +745,33 @@
     : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''));
   let discWorker = null, discInfo = null, buildGameId = '';
   const setDiscStatus = (text, kind = '') => { discStatus.textContent = text; discStatus.className = kind; };
+  // The staged manifest the probe downloaded, handed to the game's file backend (mkw_fetchfs.js)
+  // as a blob: URL in MKW_WEB_MANIFEST_URL, so the game does not download it a second time.
+  let stagedManifestUrl = '';
   const stagedGamePresent = async () => {
     try {
-      const manifest = await fetch('game/manifest-v2.txt', { cache: 'no-store' });
+      const response = await fetch('game/manifest-v2.txt', { cache: 'no-store' });
+      if (!response.ok) return false;
+      const bytes = await response.arrayBuffer();
+      const text = new TextDecoder().decode(bytes);
       // A sign-in page instead of the manifest is not a staged game.
-      if (!manifest.ok || !/^f \d+ DATA\/sys\/fst\.bin$/m.test(await manifest.text())) return false;
-      return (await fetch('game/DATA/sys/boot.bin', { method: 'HEAD', cache: 'no-store' })).ok;
+      if (!/^f \d+ DATA\/sys\/fst\.bin$/m.test(text)) return false;
+      // The disc's boot.bin must be served too: as a file, or inside the small-file pack the
+      // manifest names for it ("p" lines, tools/stage-web.sh), which is all a deployment that
+      // packs small files has to serve.
+      let probe = 'game/DATA/sys/boot.bin';
+      const packed = /^p (\["DATA\/sys\/boot\.bin",.*)$/m.exec(text);
+      if (packed) {
+        const entry = JSON.parse(packed[1]);
+        if (Array.isArray(entry) && typeof entry[1] === 'string' && /^file-packs\/[a-f0-9]{64}\.bin$/.test(entry[1])) {
+          probe = 'game/' + entry[1];
+        }
+      }
+      if (!(await fetch(probe, { method: 'HEAD', cache: 'no-store' })).ok) return false;
+      if (typeof Blob === 'function' && typeof URL.createObjectURL === 'function') {
+        stagedManifestUrl = URL.createObjectURL(new Blob([bytes], { type: 'text/plain' }));
+      }
+      return true;
     } catch {
       return false;
     }
@@ -915,6 +936,7 @@
     preRun: [() => {
       if (!persistentStorageAvailable) ENV.MKW_WEB_SESSION_STORAGE = '1';
       if (discMode === 'local') ENV.MKW_WEB_DISC = discChannel;
+      else if (stagedManifestUrl) ENV.MKW_WEB_MANIFEST_URL = stagedManifestUrl;
       if (params.has('muted')) ENV.MKW_WEB_MUTED = '1';
       if (params.has('resetsave')) ENV.MKW_WEB_RESET_SAVE = '1';
       if (roomUrl) ENV.MKW_WEB_ROOM = roomUrl;
