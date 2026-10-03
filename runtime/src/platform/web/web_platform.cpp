@@ -194,8 +194,12 @@ void UsePersistentStorage() {
 
     // Seed the NAND with the save staged next to the disc: once, or again for "?resetsave".
     const fs::path stagedSave = std::string(kGameMount) + "/save/rksys.dat";
-    const fs::path nandSave = RuntimeConfigFile::ApplicationDataDirectory() /
-        "NAND/title/00010004/524d4350/data/rksys.dat";
+    // The save's NAND folder is named after this build's release (524d4345 NTSC-U, 524d4350 PAL);
+    // mkw_saves.js imports into and exports from the same place.
+    char titleDir[9];
+    std::snprintf(titleDir, sizeof(titleDir), "%08x", unsigned(MKW_REGION_GAME_CODE));
+    const fs::path nandSave = RuntimeConfigFile::ApplicationDataDirectory() / "NAND/title/00010004" /
+        titleDir / "data/rksys.dat";
     const bool reset = EnvFlag("MKW_WEB_RESET_SAVE");
     if (fs::exists(stagedSave, ec) && (reset || !fs::exists(nandSave, ec))) {
         fs::create_directories(nandSave.parent_path(), ec);
