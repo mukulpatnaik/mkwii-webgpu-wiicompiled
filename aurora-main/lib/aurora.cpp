@@ -1622,7 +1622,9 @@ struct WebPendingGroup {
 bool g_webDisplayTiedPresent = false;
 double g_webNextStampMs = 0.0;
 std::deque<WebPendingGroup> g_webPending;
-uint32_t g_webQueueDropped = 0;  // groups replaced before any of their slots was shown
+// Groups replaced before any of their slots was shown. Incremented on the game thread, taken by
+// the diagnostics thread.
+std::atomic<uint32_t> g_webQueueDropped{0};
 // A frame that is due is shown at the next callback, and one older than that is replaced, so a
 // few groups is plenty; the cap only bounds memory if callbacks stop.
 constexpr size_t kWebMaxPendingGroups = 4;
@@ -2101,9 +2103,7 @@ extern "C" void aurora_web_set_display_tied_present(bool enabled) {
 }
 extern "C" void aurora_web_set_frame_stamp(double stampMs) { aurora::g_webNextStampMs = stampMs; }
 extern "C" uint32_t aurora_web_take_queue_dropped() {
-  const uint32_t dropped = aurora::g_webQueueDropped;
-  aurora::g_webQueueDropped = 0;
-  return dropped;
+  return aurora::g_webQueueDropped.exchange(0, std::memory_order_relaxed);
 }
 
 // Presents what a display refresh at cutoffMs (steady_clock ms, already reduced by the

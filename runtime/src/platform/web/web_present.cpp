@@ -117,9 +117,10 @@ double NowMs() {
     return std::chrono::duration<double, std::milli>(Clock::now().time_since_epoch()).count();
 }
 
-bool s_initialized = false;
-bool s_enabled = false;
-int s_mode = 0;           // 0 present on encode, 1 requestAnimationFrame, 2 timer
+// Set once on the game thread, read by Report() on the diagnostics thread too.
+std::atomic<bool> s_initialized{false};
+std::atomic<bool> s_enabled{false};
+std::atomic<int> s_mode{0};   // 0 present on encode, 1 requestAnimationFrame, 2 timer
 double s_timerHz = 0.0;
 double s_lastTickTime = 0.0;      // frame time of the previous served callback
 double s_lastTickServed = 0.0;    // when it was served
