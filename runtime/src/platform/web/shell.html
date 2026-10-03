@@ -846,6 +846,8 @@
         diag.push('Disc image: ' + data.gameId + ' ' + (data.region || 'unknown region') + ', main.dol '
           + (data.dolOk ? 'ok' : 'differs') + ', StaticR.rel ' + (data.relOk ? 'ok' : 'differs') + ', opened in ' + data.ms + ' ms');
         if (data.valid && handle) saveDiscHandle(handle);
+        // The saves panel (mkw_saves.js) finds the NAND title folder from this before the game loads.
+        if (data.valid) window.mkwGameId = data.gameId;
       } else if (data.type === 'failed') {
         discInfo = { failed: true, message: file.name + ': ' + data.message };
       } else {
