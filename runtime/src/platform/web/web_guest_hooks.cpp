@@ -6,6 +6,7 @@
 #include "ppc_runtime.h"
 #include "web_pacing.h"
 #include "web_performance.h"
+#include "web_present.h"
 
 #include <atomic>
 #include <cstdio>
@@ -220,6 +221,7 @@ bool ConsumeSkippedFrame() {
 }
 
 void Report(double elapsedMs) {
+    WebPresent::Report(elapsedMs);
     const uint32_t lagCalls = s_lagCalls.exchange(0);
     if (lagCalls) {
         std::printf("[web-pace] online race: lag-frame checks %s (%u)\n", s_noLagWait ? "skipped" : "run", lagCalls);

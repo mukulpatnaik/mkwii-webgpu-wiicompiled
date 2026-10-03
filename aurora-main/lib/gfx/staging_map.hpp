@@ -6,6 +6,8 @@ extern "C" {
 // common.cpp: suspend until the next staging-map completion (or a short timeout), and wake it.
 void aurora_web_wait_for_map(void);
 void aurora_web_map_signal(void);
+// Runs the host's hook (if any) after each wake from the map wait; see aurora_web_set_wait_hook.
+void aurora_web_run_wait_hook(void);
 }
 #endif
 #include <chrono>
@@ -66,6 +68,7 @@ public:
     // however early the GPU finished.
     static const bool oldYield = [] { const char* v = std::getenv("MKW_WEB_OLD_YIELD"); return v && *v == '1'; }();
     if (oldYield) emscripten_sleep(1); else aurora_web_wait_for_map();
+    aurora_web_run_wait_hook();
     return;
 #else
     std::unique_lock lock(mutex_);

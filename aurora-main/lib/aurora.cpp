@@ -1605,10 +1605,54 @@ std::vector<PresentationJob> encode_sealed_frame(gfx::SealedFrame& sealedFrame, 
   return presentationJobs;
 }
 
+#if defined(__EMSCRIPTEN__)
+// Display-tied presentation on the web (driven by runtime/src/platform/web/web_present.cpp).
+// The game produces frames on its own VI clock and the display refreshes on another. Presenting
+// each frame the moment it is encoded leaves which refresh shows it to chance, and Chrome does not
+// forward every OffscreenCanvas frame drawn outside an animation frame to the compositor (a Chrome
+// trace of a race showed about one refresh in ten repeating the previous frame while the game
+// presented 60 a second). So, when enabled, sealed groups are queued here with the VI time of the
+// frame they show, and the runtime presents the one due from the worker's requestAnimationFrame
+// callback. Single-threaded: the web renderer runs inline on the game's worker.
+struct WebPendingGroup {
+  double stampMs = 0.0;          // VI retrace that started this frame, steady_clock ms
+  std::vector<PresentationJob> jobs;
+  int shownSlot = -1;            // last job index presented from this group
+};
+bool g_webDisplayTiedPresent = false;
+double g_webNextStampMs = 0.0;
+std::deque<WebPendingGroup> g_webPending;
+uint32_t g_webQueueDropped = 0;  // groups replaced before any of their slots was shown
+// A frame that is due is shown at the next callback, and one older than that is replaced, so a
+// few groups is plenty; the cap only bounds memory if callbacks stop.
+constexpr size_t kWebMaxPendingGroups = 4;
+
+void web_queue_presentations(std::vector<PresentationJob>&& jobs) {
+  if (jobs.empty()) {
+    return;
+  }
+  // The display callback decides when; a software deadline would only delay it further.
+  for (auto& job : jobs) {
+    job.presentAt = {};
+  }
+  g_webPending.push_back({g_webNextStampMs, std::move(jobs), -1});
+  while (g_webPending.size() > kWebMaxPendingGroups) {
+    if (g_webPending.front().shownSlot < 0) {
+      ++g_webQueueDropped;
+    }
+    g_webPending.pop_front();
+  }
+}
+#endif
+
 // Phase 3: hand the encoded group to whoever owns presentation.
 void publish_presentations(std::vector<PresentationJob>&& presentationJobs, bool interpolationActive) {
 #if defined(__EMSCRIPTEN__)
   (void)interpolationActive;
+  if (g_webDisplayTiedPresent) {
+    web_queue_presentations(std::move(presentationJobs));
+    return;
+  }
   // No presenter thread on the web: WebGPU is only usable from the rendering thread.
   for (const auto& job : presentationJobs) {
     present_presentation_job(job);
@@ -2048,3 +2092,74 @@ void aurora_set_background_input(bool value) {
 }
 void aurora_set_display_mode(AuroraDisplayMode mode) { aurora::window::set_display_mode(mode); }
 AuroraDisplayMode aurora_get_display_mode() { return aurora::window::get_display_mode(); }
+
+#ifdef __EMSCRIPTEN__
+// Display-tied presentation (see WebPendingGroup above). Declared where used, like the other
+// aurora_web_* hooks, so the public header stays platform-neutral.
+extern "C" void aurora_web_set_display_tied_present(bool enabled) {
+  aurora::g_webDisplayTiedPresent = enabled;
+}
+extern "C" void aurora_web_set_frame_stamp(double stampMs) { aurora::g_webNextStampMs = stampMs; }
+extern "C" uint32_t aurora_web_take_queue_dropped() {
+  const uint32_t dropped = aurora::g_webQueueDropped;
+  aurora::g_webQueueDropped = 0;
+  return dropped;
+}
+
+// Presents what a display refresh at cutoffMs (steady_clock ms, already reduced by the
+// presentation latency) should show: the newest queued frame stamped at or before cutoffMs and,
+// for an interpolated group, its slot for that point of the frame period. Older frames are
+// discarded (counted when never shown). newestNow ignores the cutoff and shows the newest frame's
+// final slot, for when no display callbacks arrive. Returns 1 when a new image was presented.
+extern "C" int aurora_web_present_due(double cutoffMs, double periodMs, int newestNow, double* stampMs,
+                                      int* dropped) {
+  auto& pending = aurora::g_webPending;
+  *dropped = 0;
+  if (pending.empty()) {
+    return 0;
+  }
+  size_t index = pending.size();
+  if (newestNow) {
+    index = pending.size() - 1;
+  } else {
+    for (size_t i = pending.size(); i-- > 0;) {
+      if (pending[i].stampMs <= cutoffMs) {
+        index = i;
+        break;
+      }
+    }
+    if (index == pending.size()) {
+      return 0;
+    }
+  }
+  for (size_t i = 0; i < index; ++i) {
+    if (pending.front().shownSlot < 0) {
+      ++*dropped;
+    }
+    pending.pop_front();
+  }
+  auto& group = pending.front();
+  const int slots = static_cast<int>(group.jobs.size());
+  int slot = slots - 1;
+  if (!newestNow && slots > 1 && periodMs > 0.0) {
+    slot = static_cast<int>(std::floor((cutoffMs - group.stampMs) / periodMs * slots));
+    slot = std::clamp(slot, 0, slots - 1);
+  }
+  if (slot <= group.shownSlot) {
+    return 0;
+  }
+  // The producer never yields while holding the surface; if it somehow does, skip this refresh
+  // rather than deadlock on our own thread.
+  if (!aurora::g_surfaceMutex.try_lock()) {
+    return 0;
+  }
+  aurora::g_surfaceMutex.unlock();
+  group.shownSlot = slot;
+  *stampMs = group.stampMs;
+  const bool presented = aurora::present_presentation_job(group.jobs[static_cast<size_t>(slot)]);
+  if (newestNow) {
+    pending.clear();
+  }
+  return presented ? 1 : 0;
+}
+#endif
