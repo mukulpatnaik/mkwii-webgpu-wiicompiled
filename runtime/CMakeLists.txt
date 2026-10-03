@@ -337,6 +337,11 @@ add_test(NAME mkw_platform_paths_tests COMMAND mkw_platform_paths_tests)
 add_executable(mkw_nand_save_tests "${CMAKE_CURRENT_LIST_DIR}/tests/nand_save_tests.cpp")
 target_include_directories(mkw_nand_save_tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/include")
 target_compile_features(mkw_nand_save_tests PRIVATE cxx_std_17)
+if(MKW_PLATFORM_WEB)
+    # The save fixture outgrows Emscripten's 16 MiB default heap; the test aborted in
+    # abortOnCannotGrowMemory under Node.
+    target_link_options(mkw_nand_save_tests PRIVATE -sALLOW_MEMORY_GROWTH)
+endif()
 add_test(NAME mkw_nand_save_tests COMMAND mkw_nand_save_tests)
 
 add_executable(mkw_nand_settings_tests "${CMAKE_CURRENT_LIST_DIR}/tests/nand_settings_tests.cpp")
