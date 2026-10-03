@@ -1,6 +1,7 @@
 #ifdef __EMSCRIPTEN__
 #include "platform/web/web_pacing.h"
 #include "platform/web/web_performance.h"
+#include "platform/web/web_present.h"
 #endif
 #include "hle_stubs.h"
 #include "memory.h"
@@ -180,6 +181,27 @@ void SleepPreciselyUntil(Clock::time_point deadline, bool finishWithSpin = false
 #endif
 }
 
+#ifdef __EMSCRIPTEN__
+double ToMs(Clock::time_point t) {
+    return std::chrono::duration<double, std::milli>(t.time_since_epoch()).count();
+}
+#endif
+
+// A coarse idle wait (no spin). On the web with display-tied presentation it yields to the browser
+// instead of blocking the worker, so a display callback that lands here presents on time
+// (platform/web/web_present.h); the VI timeline and what the guest sees are unchanged.
+void IdleUntil(Clock::time_point deadline) {
+#ifdef __EMSCRIPTEN__
+    if (WebPresent::Enabled()) {
+        const double idle = WebPresent::IdleWaitUntil(ToMs(deadline));
+        if (WebPerformance::Enabled() || WebPerformance::BenchmarkEnabled()) WebPerformance::RecordSleep(idle);
+        WebPacing::NoteIdleSleep(idle);
+        return;
+    }
+#endif
+    SleepPreciselyUntil(deadline);
+}
+
 void SleepPreciselyUntilImpl(Clock::time_point deadline, bool finishWithSpin,
                              std::chrono::microseconds spinWindow) {
     const auto now = Clock::now();
@@ -334,6 +356,9 @@ void AdvanceRetrace(CpuContext* ctx, Clock::time_point retraceStamp, bool servic
         isBlack = g_vi.black;
         WriteGuestStateLocked();
     }
+#ifdef __EMSCRIPTEN__
+    WebPresent::NoteRetrace(ToMs(retraceStamp));
+#endif
 
     // Wake up threads sleeping on the VI retrace queue (VIWaitForRetrace).
     // The retrace count has been incremented and written to guest memory.
@@ -511,8 +536,11 @@ void VI_HLE_WaitForNextRetracePoll() {
     // deadline is farther away. The high-resolution wait removes the 1 ms
     // scheduler overshoot when retrace is the next event.
     const bool retraceIsNext = retraceDeadline <= now + 1ms;
-    SleepPreciselyUntil(retraceIsNext ? retraceDeadline : now + 1ms, retraceIsNext,
-                        kFinalSpinWindow);
+    if (!retraceIsNext) {
+        IdleUntil(now + 1ms);
+        return;
+    }
+    SleepPreciselyUntil(retraceDeadline, true, kFinalSpinWindow);
 }
 
 namespace {
@@ -537,7 +565,7 @@ void PaceToRetraceBoundary(Clock::time_point deadline) {
             break;
         }
         if (deadline - now > kServiceSlice + kFinalSpinWindow) {
-            SleepPreciselyUntil(now + kServiceSlice);
+            IdleUntil(now + kServiceSlice);
             OS_HLE_ProcessAlarmsDeferred(8);
             // Audio DMA is a 3 ms cadence and this wait is up to a full display
             // period long. Without a pump here the blocks that came due during
@@ -622,9 +650,20 @@ void VI_HLE_PresentFrame(bool presentedXfb, bool paceToRetrace) {
 #ifdef __EMSCRIPTEN__
     const bool measure = WebPerformance::Enabled();
     const double t0 = measure ? WebPerformance::Now() : 0.0;
+    {
+        // The VI retrace that started this frame: display-tied presentation shows it one VI period
+        // after that (platform/web/web_present.h).
+        Clock::time_point frameRetrace;
+        {
+            std::lock_guard<std::mutex> lock(g_viMutex);
+            frameRetrace = g_vi.lastRetrace;
+        }
+        WebPresent::StampFrame(ToMs(frameRetrace));
+    }
 #endif
     aurora_end_frame();
 #ifdef __EMSCRIPTEN__
+    WebPresent::AfterFrameQueued();
     const double t1 = measure ? WebPerformance::Now() : 0.0;
 #endif
     if (paceThisFrame) {
