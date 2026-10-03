@@ -197,8 +197,8 @@ test('a demand read raises the priority of chunks a race prefetch already asked 
   for (let i = 0; i < 10; i++) await tick();
   const read = backend.read(3, 0, 1, 0);
   for (let i = 0; i < 10; i++) await tick();
-  assert.deepEqual(requests.filter((r) => r.path.endsWith('castle_course.szs')).map(({ first, last, priority }) => [first, last, priority]),
-                   [[0, 2, 1], [0, 0, 0]]);
+  assert.deepEqual(requests.filter((r) => r.path.endsWith('castle_course.szs')).map(({ first, last, priority, raise }) => [first, last, priority, !!raise]),
+                   [[0, 2, 1, false], [0, 0, 0, true]]);
   held.forEach((answer) => answer());
   assert.equal(await read, 1);
   assert.equal(text(heap.slice(0, 1)), 'C');
@@ -212,8 +212,8 @@ test('a raised priority is re-sent for chunks already requested at a lower one',
   // The lap stream's read asked for chunk 0 now and chunks 1-2 at priority 1; read chunk 2 now.
   const later = backend.read(4, 50, 1, 9);
   for (let i = 0; i < 10; i++) await tick();
-  assert.deepEqual(requests.filter((r) => r.path.endsWith('n_castle_n.brstm')).map(({ first, last, priority }) => [first, last, priority]),
-                   [[0, 0, 0], [1, 2, 1], [2, 2, 0]]);
+  assert.deepEqual(requests.filter((r) => r.path.endsWith('n_castle_n.brstm')).map(({ first, last, priority, raise }) => [first, last, priority, !!raise]),
+                   [[0, 0, 0, false], [1, 2, 1, false], [2, 2, 0, true]]);
   held.forEach((answer) => answer());
   assert.equal(await later, 1);
   done();
@@ -239,6 +239,22 @@ test('only a read the game waits on times out, counted from when it starts waiti
   // A read the game waits on that is never answered still fails.
   assert.equal(await backend.read(2, 0, 4, 4), -5);
   assert.ok(errors.some((line) => /test\.bin at 4: disc read timed out/.test(line)));
+  done();
+});
+
+test('one read asks for new chunks and raises queued ones in separate requests', async () => {
+  const held = [];
+  const { backend, requests, done } = setup({ worker: { hold: (data, index, answer) => held.push(answer) } });
+  // The lap stream's first read asks for chunk 0 now and reads chunks 1-2 ahead.
+  const first = backend.read(4, 0, 1, 0);
+  for (let i = 0; i < 10; i++) await tick();
+  // Chunks 0-2 at once: 0 is already wanted now, 1-2 are raised.
+  const whole = backend.read(4, 0, 10, 0);
+  for (let i = 0; i < 10; i++) await tick();
+  assert.deepEqual(requests.filter((r) => r.path.endsWith('n_castle_n.brstm')).map(({ first, last, priority, raise }) => [first, last, priority, !!raise]),
+                   [[0, 0, 0, false], [1, 2, 1, false], [1, 2, 0, true]]);
+  held.forEach((answer) => answer());
+  assert.deepEqual(await Promise.all([first, whole]), [1, 10]);
   done();
 });
 

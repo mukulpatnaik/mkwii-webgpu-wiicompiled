@@ -9,12 +9,13 @@
 // serves the game's /game mount (mkw_discfs.js, on the WASMFS worker) over a BroadcastChannel
 // named by the page:
 //   backend -> worker  {type: 'hello'}                                  asks for the manifest
-//                      {type: 'read', path, chunkSize, first, last, priority}
+//                      {type: 'read', path, chunkSize, first, last, priority[, raise: true]}
 //   worker -> backend  {type: 'manifest', text}    the same format as a staged game/manifest.txt
 //                      {type: 'chunk', path, index, bytes} | {type: 'chunk-error', path, index, message}
 // Paths are relative to /game ("DATA/sys/main.dol", "DATA/files/Race/Common.szs"). Reads are
 // queued per chunk and served lowest priority value first (0 = the game is waiting), so
-// background prefetches never hold up a read the game is blocked on for more than one chunk.
+// background prefetches never hold up a read the game is blocked on for more than one chunk. A
+// request marked raise only makes chunks that are still queued more urgent.
 'use strict';
 
 // From projects/*/recomp.yml (inputs.dol.sha256, inputs.rel.sha256): the clean retail executables
@@ -212,13 +213,14 @@ function schedule() {
   }
 }
 
-function enqueue(path, chunkSize, index, priority) {
+function enqueue(path, chunkSize, index, priority, raiseOnly) {
   const key = path + ':' + chunkSize + ':' + index;
   const job = jobs.get(key);
   if (job) {
     if (priority < job.priority) job.priority = priority;
     return;
   }
+  if (raiseOnly) return;
   jobs.set(key, {key, path, chunkSize, index, priority, sequence: sequence++, queued: performance.now()});
 }
 
@@ -278,7 +280,9 @@ function serve(name) {
                              message: 'too many chunks in one request: ' + (end - first + 1)});
         return;
       }
-      for (let index = first; index <= end; index++) enqueue(path, chunkSize, index, Number(priority) || 0);
+      // A raise (data.raise) is for chunks already requested at a lower priority: it only reorders
+      // jobs still queued, since a chunk no longer queued has been read and sent already.
+      for (let index = first; index <= end; index++) enqueue(path, chunkSize, index, Number(priority) || 0, !!data.raise);
       schedule();
     }
   };

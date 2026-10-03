@@ -116,21 +116,25 @@ addToLibrary({
     };
 
     // Requests the chunks of [first, last] that are neither cached nor already requested at an
-    // equal or more urgent priority, and returns a promise for all of them.
+    // equal or more urgent priority, and returns a promise for all of them. A chunk already
+    // requested at a lower priority is asked for again as a raise, which the worker applies only
+    // while the chunk is still queued: once it has been read it is on its way here, and reading it
+    // a second time would only delay other chunks.
     function ensure(key, chunkSize, first, last, priority) {
       const waits = [];
-      let runFirst = -1;
-      const runs = [];
+      const runs = [];                  // [first, last, raise]
+      let runFirst = -1, runRaise = false;
+      const endRun = (index) => { if (runFirst >= 0) runs.push([runFirst, index - 1, runRaise]); runFirst = -1; };
       for (let index = first; index <= last; index++) {
         const chunk = cached(key, index);
         if (chunk) {
           touch(key, index, chunk.byteLength);
-          if (runFirst >= 0) { runs.push([runFirst, index - 1]); runFirst = -1; }
+          endRun(index);
           continue;
         }
         const id = key + ':' + index;
         let pending = inflight.get(id);
-        let request = false;
+        let request = false, raise = false;
         if (!pending) {
           pending = {priority, timer: 0};
           pending.promise = new Promise((resolve, reject) => { pending.resolve = resolve; pending.reject = reject; });
@@ -139,7 +143,7 @@ addToLibrary({
           request = true;
         } else if (priority < pending.priority) {
           pending.priority = priority;   // the worker raises the queued job
-          request = true;
+          request = raise = true;
         }
         // Only a read the game is blocked on times out, and its clock starts when the game starts
         // waiting: read-ahead requests can sit behind each other in the worker's queue for longer
@@ -147,13 +151,15 @@ addToLibrary({
         if (priority === DEMAND && !pending.timer) {
           pending.timer = setTimeout(() => settle(key, index, null, new Error('disc read timed out')), READ_TIMEOUT_MS);
         }
-        if (request && runFirst < 0) runFirst = index;
-        if (!request && runFirst >= 0) { runs.push([runFirst, index - 1]); runFirst = -1; }
+        if (!request || raise !== runRaise) endRun(index);
+        if (request && runFirst < 0) { runFirst = index; runRaise = raise; }
         waits.push(pending.promise);
       }
-      if (runFirst >= 0) runs.push([runFirst, last]);
-      for (const [from, to] of runs) {
-        channel.postMessage({type: 'read', path: key.slice(6), chunkSize, first: from, last: to, priority});
+      endRun(last + 1);
+      for (const [from, to, raise] of runs) {
+        const message = {type: 'read', path: key.slice(6), chunkSize, first: from, last: to, priority};
+        if (raise) message.raise = true;
+        channel.postMessage(message);
       }
       return Promise.all(waits);
     }

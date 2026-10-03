@@ -241,6 +241,23 @@ test('queued chunks are served most urgent first, and bad requests answer with a
   assert.match(worker.received.find((m) => m.type === 'chunk-error' && m.index === 30).message, /past the end/);
 });
 
+test('a raise reorders queued chunks and never reads a chunk again', { skip: !wasmBytes && 'no disc wasm built' }, async () => {
+  const { image } = syntheticDisc();
+  const worker = startWorker();
+  await worker.open(memoryFile(image));
+  const path = 'DATA/files/Race/Course/castle_course.szs';
+  worker.game.postMessage({ type: 'read', path, chunkSize: 4096, first: 0, last: 9, priority: 2 });
+  worker.game.postMessage({ type: 'read', path, chunkSize: 4096, first: 7, last: 7, priority: 0, raise: true });
+  worker.game.postMessage({ type: 'read', path, chunkSize: 4096, first: 12, last: 12, priority: 0, raise: true });
+  await worker.waitFor((m) => m.type === 'chunk' && m.index === 9);
+  // Chunk 3 has been sent: raising it now (it was in transit when the game came to need it) does
+  // not read it again.
+  worker.game.postMessage({ type: 'read', path, chunkSize: 4096, first: 3, last: 3, priority: 0, raise: true });
+  for (let i = 0; i < 20; i++) await tick();
+  const order = worker.received.filter((m) => m.type === 'chunk' || m.type === 'chunk-error').map((m) => m.index);
+  assert.deepEqual(order, [7, 0, 1, 2, 3, 4, 5, 6, 8, 9]);
+});
+
 test('a request queues only the chunks its file has, and an absurd range is refused', { skip: !wasmBytes && 'no disc wasm built' }, async () => {
   const { image } = syntheticDisc();
   const worker = startWorker();
