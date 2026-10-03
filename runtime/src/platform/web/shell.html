@@ -931,6 +931,19 @@
     checkDisc();
     setDiscStatus('Cleared: this browser no longer keeps access to your disc image. Saves and settings are kept.');
   });
+  // The owner's local helper server (tools/web-server in the outer project) can offer their disc
+  // image next to the page, so nothing has to be picked. Reads stay on this machine.
+  const serverDisc = async () => {
+    try {
+      const response = await fetch('mkw-server-disc.json', { cache: 'no-store' });
+      if (!response.ok) return null;
+      const info = await response.json();
+      if (typeof info?.url !== 'string' || !Number.isSafeInteger(info.size) || info.size <= 0) return null;
+      return { url: new URL(info.url, location.href).href, size: info.size, name: String(info.name || 'disc image') };
+    } catch {
+      return null;
+    }
+  };
   const discProbe = (async () => {
     if (!discMode) discMode = await stagedGamePresent() ? 'fetch' : 'local';
     diag.push('Game data: ' + (discMode === 'local' ? 'the player\'s disc image, read in this browser' : 'staged game folder on the server'));
@@ -943,6 +956,11 @@
       return;
     }
     setDiscStatus('No disc image chosen yet.');
+    const served = await serverDisc();
+    if (served) {
+      openDisc(served, null);
+      return;
+    }
     await restoreDisc();
   })();
 

@@ -62,7 +62,26 @@ class FileReaderSync {
   readAsArrayBuffer(blob) { const bytes = blob.read(); return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength); }
 }
 
-function startWorker({ regions } = {}) {
+// Synchronous XMLHttpRequest over an image a local helper server offers (Range requests only).
+function rangeServer(bytes, url) {
+  const requests = [];
+  class XMLHttpRequest {
+    open(method, target, async) { this.method = method; this.target = target; this.async = async; this.headers = {}; }
+    setRequestHeader(name, value) { this.headers[name] = value; }
+    send() {
+      assert.equal(this.async, false);
+      requests.push(this.headers.Range);
+      const match = /^bytes=(\d+)-(\d+)$/.exec(this.headers.Range || '');
+      if (this.target !== url || !match) { this.status = 404; return; }
+      const piece = bytes.subarray(Number(match[1]), Number(match[2]) + 1);
+      this.status = 206;
+      this.response = piece.buffer.slice(piece.byteOffset, piece.byteOffset + piece.byteLength);
+    }
+  }
+  return { XMLHttpRequest, requests };
+}
+
+function startWorker({ regions, XMLHttpRequest } = {}) {
   const Channel = channelHub();
   const posted = [];
   const logs = [];
@@ -71,7 +90,7 @@ function startWorker({ regions } = {}) {
   const self = { location: { href: 'https://game.test/mkw_disc_worker.js' }, postMessage: (m) => posted.push(m) };
   const timers = [];
   vm.runInNewContext(text, {
-    self, BroadcastChannel: Channel, MessageChannel: ImmediateChannel, FileReaderSync, WebAssembly, TextDecoder, URL,
+    self, BroadcastChannel: Channel, MessageChannel: ImmediateChannel, FileReaderSync, XMLHttpRequest, WebAssembly, TextDecoder, URL,
     crypto: webcrypto, performance, setTimeout, console: { log: (s) => logs.push(s), error: (s) => logs.push(s) },
     setInterval: (fn, ms) => { timers.push(fn); return timers.length; },
     fetch: async (url) => {
@@ -320,6 +339,24 @@ test('matching hashes validate, and the manifest and file chunks match the image
   assert.equal(chunks[0].bytes.byteLength, 70000 - 65536);
   await worker.waitFor((m) => m.type === 'chunk' && m.path === 'DATA/sys/main.dol');
   assert.equal(sha256(Buffer.from(all.concat(worker.received).find((m) => m.path === 'DATA/sys/main.dol').bytes)), sha256(dolBytes));
+});
+
+test('an image offered by the local helper server is read with range requests', { skip: !wasmBytes && 'no disc wasm built' }, async () => {
+  const { image, files, dolBytes } = syntheticDisc();
+  const url = 'https://game.test/mkw-server-disc';
+  const server = rangeServer(image, url);
+  const worker = startWorker({ XMLHttpRequest: server.XMLHttpRequest,
+    regions: { RMCE01: { name: 'NTSC-U', dol: sha256(dolBytes), rel: sha256(files['rel/StaticR.rel']) } } });
+  const result = await worker.open({ url, size: image.byteLength, name: 'disc.iso' });
+  assert.equal(result.type, 'opened');
+  assert.equal(result.valid, true, result.reason);
+  assert.ok(server.requests.length > 0);
+  assert.ok(server.requests.every((range) => /^bytes=\d+-\d+$/.test(range)));
+
+  worker.game.postMessage({ type: 'read', path: 'DATA/files/Race/Course/castle_course.szs', chunkSize: 32768, first: 0, last: 2, priority: 0 });
+  await worker.waitFor((m) => m.type === 'chunk' && m.path.endsWith('.szs') && m.index === 2);
+  const chunks = worker.received.filter((m) => m.type === 'chunk' && m.path.endsWith('.szs')).sort((a, b) => a.index - b.index);
+  assert.equal(sha256(Buffer.concat(chunks.map((m) => Buffer.from(m.bytes)))), sha256(files['Race/Course/castle_course.szs']));
 });
 
 test('queued chunks are served most urgent first, and bad requests answer with an error', { skip: !wasmBytes && 'no disc wasm built' }, async () => {

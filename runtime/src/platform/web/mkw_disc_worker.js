@@ -4,7 +4,9 @@
 // shell.html starts this worker with the File the player picked and posts {type: 'open', file,
 // channel}. The worker opens the image with nod compiled to WebAssembly (disc-wasm/, built next to
 // the page as mkw_disc.wasm), whose only input is a synchronous read callback served here with
-// FileReaderSync on File.slice(). It identifies the disc by its game ID and the SHA-256 of
+// FileReaderSync on File.slice(). A local helper server (tools/web-server in the outer project) can
+// instead offer the owner's image at a URL: the page then posts {file: {url, size, name}} and reads
+// are synchronous HTTP range requests (allowed in workers). It identifies the disc by its game ID and the SHA-256 of
 // main.dol and StaticR.rel, replies {type: 'opened', ...} (or {type: 'failed', message}), and then
 // serves the game's /game mount (mkw_discfs.js, on the WASMFS worker) over a BroadcastChannel
 // named by the page:
@@ -70,7 +72,7 @@ function hostReadAt(pointer, length, offsetLow, offsetHigh) {
   const offset = (offsetHigh >>> 0) * 0x100000000 + (offsetLow >>> 0);
   try {
     if (offset + length > fileSize) return 1;
-    const bytes = reader.readAsArrayBuffer(file.slice(offset, offset + length));
+    const bytes = file.url ? readRemote(offset, length) : reader.readAsArrayBuffer(file.slice(offset, offset + length));
     if (bytes.byteLength !== length) return 1;
     memory().set(new Uint8Array(bytes), pointer);
     stats.hostReads++;
@@ -81,6 +83,17 @@ function hostReadAt(pointer, length, offsetLow, offsetHigh) {
     console.error('[web-disc] reading the image failed at ' + offset + ': ' + failed);
     return 2;
   }
+}
+
+// One range of an image served by the local helper server.
+function readRemote(offset, length) {
+  const request = new XMLHttpRequest();
+  request.open('GET', file.url, false);
+  request.responseType = 'arraybuffer';
+  request.setRequestHeader('Range', 'bytes=' + offset + '-' + (offset + length - 1));
+  request.send();
+  if (request.status !== 206) throw new Error('HTTP ' + request.status + ' for a range of ' + file.url);
+  return request.response;
 }
 
 function loadWasm() {
@@ -295,7 +308,7 @@ async function open(picked) {
   await loadWasm();
   file = picked;
   fileSize = picked.size;
-  reader = new FileReaderSync();
+  reader = picked.url ? null : new FileReaderSync();
   if (exports.disc_open(fileSize >>> 0, Math.floor(fileSize / 0x100000000)) !== 0) {
     throw new Error('This file is not a disc image that can be read (' + lastError() + ').' +
                     unsupportedFormatHint(picked.name || ''));
