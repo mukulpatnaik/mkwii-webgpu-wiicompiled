@@ -1082,6 +1082,15 @@ EM_JS(void, aurora_web_map_signal, (), {
   const resolve = globalThis.__auroraMapResolve;
   if (resolve) resolve();
 });
+// The staging-map wait is the one place a frame start yields to the browser. A host that presents
+// from the browser's frame callback (the runtime's display-tied presentation) wakes this wait when
+// a callback lands in it and runs its hook here, between frames, so the callback is served at
+// once instead of after the next frame's work. Spurious wakes are harmless: the caller re-checks.
+static void (*g_webWaitHook)() = nullptr;
+extern "C" void aurora_web_set_wait_hook(void (*hook)()) { g_webWaitHook = hook; }
+extern "C" void aurora_web_run_wait_hook() {
+  if (g_webWaitHook != nullptr) g_webWaitHook();
+}
 #endif
 
 #ifdef __EMSCRIPTEN__
