@@ -19,7 +19,7 @@ function deferred() {
 
 function setup({ invalidManifest = false, ignoreRange = false, aliases = '', manifestText = manifest,
                  fileUrls = { 2: 'DATA/files/test.bin' }, contents = {}, chunkSize = 4,
-                 beforeFetch = async () => {}, now = () => performance.now(), cacheLimit } = {}) {
+                 beforeFetch = async () => {}, now = () => performance.now(), cacheLimit, manifestUrl } = {}) {
   const requests = [], errors = [], backends = {}, heap = new Uint8Array(4096);
   const channels = [];
   let library;
@@ -31,6 +31,7 @@ function setup({ invalidManifest = false, ignoreRange = false, aliases = '', man
     UTF8ToString: (s) => s,
     __wasmfs_fetch_get_file_url: (file) => file === 1 ? 'game//manifest.txt' : 'game//' + fileUrls[file],
     __wasmfs_fetch_get_chunk_size: () => chunkSize,
+    ...(manifestUrl === undefined ? {} : { _mkw_web_manifest_url: () => manifestUrl }),
     self: { location: { href: 'https://game.test/WiiCompiled.js' } },
     URL, TextDecoder, AbortController, crypto: webcrypto,
     performance: { now },
@@ -63,6 +64,25 @@ test('manifest size and bytes come from one uncached GET, regardless of broken H
   assert.deepEqual(heap.slice(0, manifestBytes.length), manifestBytes);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].options.cache, 'no-store');
+});
+
+test('the manifest the page already downloaded is read from its blob: URL, not the server', async () => {
+  const blobUrl = 'blob:https://game.test/0123';
+  const { backend, requests, heap } = setup({ manifestUrl: blobUrl,
+    beforeFetch: async (url) => url === blobUrl ? new Response(manifestBytes) : undefined });
+  assert.equal(await backend.getSize(1), manifestBytes.length);
+  assert.equal(await backend.read(1, 0, manifestBytes.length, 0), manifestBytes.length);
+  assert.deepEqual(heap.slice(0, manifestBytes.length), manifestBytes);
+  assert.deepEqual(requests.map((r) => r.url), [blobUrl]);
+});
+
+test('an unreadable blob: URL falls back to downloading the manifest', async () => {
+  const blobUrl = 'blob:https://game.test/0123';
+  const { backend, requests } = setup({ manifestUrl: blobUrl,
+    beforeFetch: async (url) => { if (url === blobUrl) throw new TypeError('Failed to fetch'); } });
+  assert.equal(await backend.getSize(1), manifestBytes.length);
+  assert.deepEqual(requests.map((r) => r.url), [blobUrl, 'game/manifest-v2.txt']);
+  assert.equal(requests[1].options.cache, 'no-store');
 });
 
 test('file ranges use canonical URLs and preserve reads across chunk boundaries', async () => {

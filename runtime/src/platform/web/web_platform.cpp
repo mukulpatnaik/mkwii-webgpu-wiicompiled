@@ -1,18 +1,22 @@
 // Web (Emscripten) start-up: file system layout before anything reads configuration.
 //
-// The page is served next to a `game/` folder holding the extracted disc (`game/DATA/sys`,
-// `game/DATA/files`) and `game/manifest.txt`, which lists every directory ("d <path>") and file
-// ("f <size> <path>") below `game/`. The disc is far too large to preload, so `game/` is mounted at
-// /game with the WASMFS fetch backend: each listed file becomes a lazily fetched file, read in
-// chunks with HTTP range requests the first time the game touches it (mkw_fetchfs.js, which also
-// takes the sizes from the manifest). User state (Config.toml, NAND, logs) lives in memory under
-// /data for now; an optional `game/save/rksys.dat` seeds the NAND save.
+// The disc is mounted at /game with the WASMFS fetch backend, from one of two sources:
+//  - The player's own disc image (the default when the site has no game folder): the page reads
+//    the picked file in a worker (mkw_disc_worker.js) and names a BroadcastChannel in
+//    MKW_WEB_DISC, over which the backend's JS half (mkw_discfs.js) asks that worker for data.
+//  - A staged copy: the page is served next to a `game/` folder holding the extracted disc
+//    (`game/DATA/sys`, `game/DATA/files`), read in chunks with HTTP range requests the first
+//    time the game touches a file (mkw_fetchfs.js).
+// Either way /game/manifest.txt lists every directory ("d <path>") and file ("f <size> <path>"),
+// and each listed file becomes a lazily read file. User state (Config.toml, NAND, logs) lives in
+// memory under /data for now; an optional `game/save/rksys.dat` seeds the NAND save.
 #if defined(__EMSCRIPTEN__)
 
 #include "web_platform.h"
 #include "web_guest_hooks.h"
 #include "web_guest_profile.h"
 #include "web_performance.h"
+#include "region/guest_region.h"
 
 #include "fiber_manager.h"
 #include "guest_flat_memory.h"
@@ -27,6 +31,7 @@
 #include <vector>
 
 #include <emscripten/em_asm.h>
+#include <emscripten/emscripten.h>
 #include <emscripten/heap.h>
 #include <malloc.h>
 #include <emscripten/proxying.h>
@@ -56,6 +61,12 @@ namespace {
 constexpr const char* kGameMount = "/game";
 constexpr uint32_t kFetchChunkSize = 1u << 20;
 
+// The page's BroadcastChannel to its disc reader worker, or empty for a staged game folder.
+std::string g_discChannel;
+// For a staged game folder, the copy of game/manifest-v2.txt the page already downloaded (a blob:
+// URL), or empty to download it.
+std::string g_manifestUrl;
+
 // Entries created inside a fetch-backed directory are fetch-backed themselves (their URL is
 // derived from the path), so ordinary mkdir/open build the tree.
 int CreateFile(const std::string& path) {
@@ -69,6 +80,14 @@ int CreateFile(const std::string& path) {
 } // namespace
 
 void MountGame() {
+    // Read on the WASMFS worker when the backend is created (mkw_fetchfs.js), so set it first.
+    if (const char* channel = std::getenv("MKW_WEB_DISC"); channel && *channel) {
+        g_discChannel = channel;
+    }
+    if (const char* manifestUrl = std::getenv("MKW_WEB_MANIFEST_URL"); manifestUrl && *manifestUrl) {
+        g_manifestUrl = manifestUrl;
+    }
+    const bool localDisc = !g_discChannel.empty();
     backend_t fetch = wasmfs_create_fetch_backend("game", kFetchChunkSize);
     if (!fetch || wasmfs_create_directory(kGameMount, 0777, fetch) != 0) {
         throw std::runtime_error("unable to mount the game folder");
@@ -80,7 +99,8 @@ void MountGame() {
 
     std::ifstream manifest(manifestPath);
     if (!manifest) {
-        throw std::runtime_error("game/manifest.txt is missing; run the web deploy script");
+        throw std::runtime_error(localDisc ? "the disc image could not be read; reload the page and choose it again"
+                                           : "game/manifest.txt is missing; run the web deploy script");
     }
     size_t files = 0;
     std::string line;
@@ -104,9 +124,11 @@ void MountGame() {
         files += line[0] == 'f';
     }
     if (manifest.bad() || files == 0 || !std::filesystem::exists("/game/DATA/sys/fst.bin")) {
-        throw std::runtime_error("Game files could not be loaded. Reload the page after signing in.");
+        throw std::runtime_error(localDisc ? "The disc image could not be read. Reload the page and choose it again."
+                                           : "Game files could not be loaded. Reload the page after signing in.");
     }
-    std::printf("[web] mounted %zu game files at %s (game thread %p)\n", files, kGameMount,
+    std::printf("[web] mounted %zu game files at %s from %s (game thread %p)\n", files, kGameMount,
+                localDisc ? "the local disc image" : "the staged game folder",
                 reinterpret_cast<void*>(pthread_self()));
 }
 
@@ -295,6 +317,24 @@ void StartWatchdog() {
 }
 
 } // namespace WebPlatform
+
+extern "C" {
+// mkw_fetchfs.js asks which source the /game mount reads (see MountGame).
+EMSCRIPTEN_KEEPALIVE const char* mkw_web_disc_channel() {
+    return WebPlatform::g_discChannel.c_str();
+}
+
+// The staged manifest the page already has, as a blob: URL, or "" (mkw_fetchfs.js).
+EMSCRIPTEN_KEEPALIVE const char* mkw_web_manifest_url() {
+    return WebPlatform::g_manifestUrl.c_str();
+}
+
+// The release this build was translated from (e.g. "RMCE01"): the page accepts only a disc
+// image of that release (shell.html).
+EMSCRIPTEN_KEEPALIVE const char* mkw_web_build_game_id() {
+    return MKW_REGION_GAME_ID;
+}
+}
 
 // Replaces Emscripten's html5/callback.c forwarder (same symbol; the linker prefers this
 // definition). Browser events are queued to the thread that registered their handler; the stock

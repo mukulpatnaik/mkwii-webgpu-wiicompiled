@@ -167,6 +167,12 @@ trees themselves (fetched by `Launcher/Prepare-Dependencies.ps1`) so end-user bu
 | Tracy Profiler | pinned commit | BSD-3-Clause | <https://github.com/wolfpld/tracy> |
 | C++/WinRT | - | MIT (Microsoft) | <https://github.com/microsoft/cppwinrt> |
 | nodtool (disc image extraction) | v2.0.0-alpha.10 | MIT OR Apache-2.0 | <https://github.com/encounter/nod> |
+| nod (the web build's disc reader, `mkw_disc.wasm`) | 2.0.0-alpha.12, commit `ebd80ca` | MIT OR Apache-2.0 | <https://github.com/encounter/nod> |
+
+The web build's disc reader (`runtime/src/platform/web/disc-wasm`) is compiled by cargo with nod
+and its Rust dependencies, pinned in that crate's `Cargo.lock` (crates.io checksums, nod by git
+commit). They are under MIT and/or Apache-2.0, except foldhash (Zlib), xxhash-rust (BSL-1.0) and
+zerocopy (BSD-2-Clause OR Apache-2.0 OR MIT).
 
 ### Dual-licensed components - elections made by this project
 

@@ -198,6 +198,65 @@ if(MKW_HAVE_RETRO_REWIND)
     target_precompile_headers(mkw_retro_rewind_functions REUSE_FROM mkw_base_shared)
 endif()
 
+# Browser build: the player's own disc image is read in a worker (mkw_disc_worker.js) by nod
+# compiled to wasm32-unknown-unknown (src/platform/web/disc-wasm). Both files are placed next to
+# WiiCompiled.{html,js,wasm}, where the page loads them; stage or deploy them with the rest.
+# MKW_NOD_SOURCE_DIR builds against a local nod checkout instead of the pinned git revision.
+# Without cargo or its wasm32-unknown-unknown target, or when cargo fails, the web build still
+# succeeds with a warning: the page then says the disc reader is missing, and only a staged game
+# folder plays.
+set(MKW_NOD_SOURCE_DIR "" CACHE PATH "Local nod checkout for the browser disc reader (default: the revision pinned in disc-wasm/Cargo.toml)")
+function(mkw_add_web_disc_reader)
+    if(TARGET mkw_web_disc_reader)
+        return()
+    endif()
+    set(web_dir "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web")
+    set(crate_dir "${web_dir}/disc-wasm")
+    set(outputs "${CMAKE_BINARY_DIR}/mkw_disc_worker.js")
+    add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/mkw_disc_worker.js"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${web_dir}/mkw_disc_worker.js" "${CMAKE_BINARY_DIR}/mkw_disc_worker.js"
+        DEPENDS "${web_dir}/mkw_disc_worker.js"
+        VERBATIM)
+    find_program(MKW_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin")
+    find_program(MKW_RUSTC rustc HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin")
+    set(missing "")
+    if(NOT MKW_CARGO OR NOT MKW_RUSTC)
+        set(missing "cargo was not found. Install Rust (https://rustup.rs) and run \"rustup target add wasm32-unknown-unknown\"")
+    else()
+        # The toolchain cargo will use (rustup honours overrides in the crate's directory) must
+        # have the wasm32 standard library; otherwise cargo would only fail at build time.
+        execute_process(COMMAND "${MKW_RUSTC}" --print sysroot WORKING_DIRECTORY "${crate_dir}"
+            OUTPUT_VARIABLE sysroot RESULT_VARIABLE sysroot_result
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(NOT sysroot_result EQUAL 0 OR NOT IS_DIRECTORY "${sysroot}/lib/rustlib/wasm32-unknown-unknown/lib")
+            set(missing "the Rust toolchain at ${sysroot} has no wasm32-unknown-unknown target. Run \"rustup target add wasm32-unknown-unknown\"")
+        endif()
+    endif()
+    if(missing STREQUAL "")
+        set(work_dir "${CMAKE_BINARY_DIR}/disc-wasm")
+        set(stamp "${work_dir}/mkw_disc.stamp")
+        file(GLOB crate_sources CONFIGURE_DEPENDS "${crate_dir}/src/*.rs")
+        add_custom_command(OUTPUT "${stamp}"
+            BYPRODUCTS "${CMAKE_BINARY_DIR}/mkw_disc.wasm"
+            COMMAND ${CMAKE_COMMAND} "-DCARGO=${MKW_CARGO}" "-DCRATE_DIR=${crate_dir}"
+                "-DWORK_DIR=${work_dir}" "-DOUTPUT=${CMAKE_BINARY_DIR}/mkw_disc.wasm"
+                "-DSTAMP=${stamp}" "-DNOD_SOURCE_DIR=${MKW_NOD_SOURCE_DIR}"
+                -P "${crate_dir}/build_disc_reader.cmake"
+            DEPENDS "${crate_dir}/build_disc_reader.cmake" "${crate_dir}/Cargo.toml"
+                "${crate_dir}/Cargo.lock" ${crate_sources}
+            COMMENT "Building the browser disc reader (nod for wasm32-unknown-unknown)"
+            USES_TERMINAL
+            VERBATIM)
+        list(APPEND outputs "${stamp}")
+    else()
+        # A reader left from an earlier configuration would not be rebuilt with the worker script.
+        file(REMOVE "${CMAKE_BINARY_DIR}/mkw_disc.wasm")
+        message(WARNING "This web build has no disc reader (mkw_disc.wasm), so players cannot use their "
+                        "own disc image and only a staged game folder plays: ${missing}, then run CMake again.")
+    endif()
+    add_custom_target(mkw_web_disc_reader DEPENDS ${outputs})
+endfunction()
+
 function(mkw_configure_product target)
     target_sources(${target} PRIVATE $<TARGET_OBJECTS:mkw_runtime_common>)
     # Startup CPU check. Must stay a separate object library so it keeps the
@@ -278,13 +337,15 @@ function(mkw_configure_product target)
     endif()
 
     if(MKW_PLATFORM_WEB)
+        mkw_add_web_disc_reader()
+        add_dependencies(${target} mkw_web_disc_reader)
         # Browser build. main() runs on a pthread so the game loop and synchronous file reads may
         # block; the canvas is transferred to that thread for WebGPU. JSPI lets the WebGPU
         # adapter/device requests be awaited synchronously and carries the guest contexts
         # (HostContext, mkw_fibers.js), which all run on that one thread. WASMFS provides the lazy
         # fetch-backed disc mount (web_platform.cpp).
         set_target_properties(${target} PROPERTIES SUFFIX ".html"
-            LINK_DEPENDS "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js;${MKW_RUNTIME_SOURCE_DIR}/assets/pipeline/initial_pipeline_cache.db")
+            LINK_DEPENDS "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_discfs.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js;${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js;${MKW_RUNTIME_SOURCE_DIR}/assets/pipeline/initial_pipeline_cache.db")
         set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS
             "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_benchmark.js"
             "${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js")
@@ -292,6 +353,7 @@ function(mkw_configure_product target)
             --use-port=emdawnwebgpu -sJSPI -sJSPI_EXPORTS=mkw_fiber_entry -sPROXY_TO_PTHREAD
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fibers.js"
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_fetchfs.js"
+            "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_discfs.js"
             "--js-library=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/mkw_benchmark.js"
             -sOFFSCREENCANVAS_SUPPORT "-sOFFSCREENCANVASES_TO_PTHREAD=#canvas"
             -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=536870912 -sMAXIMUM_MEMORY=2147483648
@@ -299,7 +361,7 @@ function(mkw_configure_product target)
             # can create additional workers through the responsive browser main thread if needed.
             -sSTACK_SIZE=8388608 -sDEFAULT_PTHREAD_STACK_SIZE=2097152 -sPTHREAD_POOL_SIZE=8
             -sWASMFS -sFORCE_FILESYSTEM -sEXIT_RUNTIME=0 -sASSERTIONS=1 --profiling-funcs
-            -sINVOKE_RUN=0 -sEXPORTED_RUNTIME_METHODS=callMain,ENV
+            -sINVOKE_RUN=0 -sEXPORTED_RUNTIME_METHODS=callMain,ENV,UTF8ToString
             "--shell-file=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shell.html"
             "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/shader_diagnostics.js"
             "--pre-js=${MKW_RUNTIME_SOURCE_DIR}/src/platform/web/benchmark_client.js"
