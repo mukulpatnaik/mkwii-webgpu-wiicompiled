@@ -757,72 +757,14 @@ u32 PADRead(PADStatus* status) {
     }
 
     status[i].err = PAD_ERR_NONE;
-    if (g_keyboardBindings[i].m_mappingsSet && SDL_GetKeyboardFocus() != nullptr) {
-      std::ranges::for_each(
-          g_keyboardBindings[i].m_buttonMapping, [&kbState, &numKeys, &taps, &i, &status](const PADKeyButtonBinding& mapping) {
-            if (mapping.scancode > PAD_KEY_INVALID && mapping.scancode < numKeys &&
-                (kbState[mapping.scancode] || taps.key(mapping.scancode))) {
-              status[i].button |= mapping.padButton;
-            } else if (is_mouse_scancode(mapping.scancode) && is_mouse_button_pressed(mapping.scancode, taps)) {
-              status[i].button |= mapping.padButton;
-            }
-          });
-
-      int lx = 0, ly = 0, rx = 0, ry = 0, tl = 0, tr = 0;
-      for (const auto& binding : g_keyboardBindings[i].m_axisMapping) {
-        bool pressed = false;
-        if (binding.scancode > PAD_KEY_INVALID) {
-          pressed = binding.scancode < numKeys && (kbState[binding.scancode] || taps.key(binding.scancode));
-        } else if (is_mouse_scancode(binding.scancode)) {
-          pressed = is_mouse_button_pressed(binding.scancode, taps);
-        }
-        if (!pressed) {
-          continue;
-        }
-        switch (binding.padAxis) {
-        case PAD_AXIS_LEFT_X_POS:
-          lx += 127;
-          break;
-        case PAD_AXIS_LEFT_X_NEG:
-          lx -= 127;
-          break;
-        case PAD_AXIS_LEFT_Y_POS:
-          ly += 127;
-          break;
-        case PAD_AXIS_LEFT_Y_NEG:
-          ly -= 127;
-          break;
-        case PAD_AXIS_RIGHT_X_POS:
-          rx += 127;
-          break;
-        case PAD_AXIS_RIGHT_X_NEG:
-          rx -= 127;
-          break;
-        case PAD_AXIS_RIGHT_Y_POS:
-          ry += 127;
-          break;
-        case PAD_AXIS_RIGHT_Y_NEG:
-          ry -= 127;
-          break;
-        case PAD_AXIS_TRIGGER_L:
-          tl += 255;
-          break;
-        case PAD_AXIS_TRIGGER_R:
-          tr += 255;
-          break;
-        default:
-          break;
-        }
-      }
-      status[i].stickX = static_cast<s8>(std::clamp(static_cast<int>(status[i].stickX) + lx, -127, 127));
-      status[i].stickY = static_cast<s8>(std::clamp(static_cast<int>(status[i].stickY) + ly, -127, 127));
-      status[i].substickX = static_cast<s8>(std::clamp(static_cast<int>(status[i].substickX) + rx, -127, 127));
-      status[i].substickY = static_cast<s8>(std::clamp(static_cast<int>(status[i].substickY) + ry, -127, 127));
-      status[i].triggerLeft = static_cast<u8>(std::min(static_cast<int>(status[i].triggerLeft) + tl, 255));
-      status[i].triggerRight = static_cast<u8>(std::min(static_cast<int>(status[i].triggerRight) + tr, 255));
-    }
-
+    // A pad assigned to this port is read first; keyboard bindings then add to it. Natively the
+    // keyboard replaces the pad on its port. The web build turns the keyboard on for port 1 by
+    // default (EnableKeyboardByDefault), so there it must not hide the first pad.
+#if defined(__EMSCRIPTEN__)
+    if (controller) {
+#else
     if (controller && !g_keyboardBindings[i].m_mappingsSet) {
+#endif
       EnsureMappingLoaded(controller);
 
       // Wii U Pro Controller raw D-pad fallback. SDL's HIDAPI Wii driver posts
@@ -1016,6 +958,71 @@ u32 PADRead(PADStatus* status) {
                           controller->m_ledBlue);
         controller->m_isColorDirty = false;
       }
+    }
+
+    if (g_keyboardBindings[i].m_mappingsSet && SDL_GetKeyboardFocus() != nullptr) {
+      std::ranges::for_each(
+          g_keyboardBindings[i].m_buttonMapping, [&kbState, &numKeys, &taps, &i, &status](const PADKeyButtonBinding& mapping) {
+            if (mapping.scancode > PAD_KEY_INVALID && mapping.scancode < numKeys &&
+                (kbState[mapping.scancode] || taps.key(mapping.scancode))) {
+              status[i].button |= mapping.padButton;
+            } else if (is_mouse_scancode(mapping.scancode) && is_mouse_button_pressed(mapping.scancode, taps)) {
+              status[i].button |= mapping.padButton;
+            }
+          });
+
+      int lx = 0, ly = 0, rx = 0, ry = 0, tl = 0, tr = 0;
+      for (const auto& binding : g_keyboardBindings[i].m_axisMapping) {
+        bool pressed = false;
+        if (binding.scancode > PAD_KEY_INVALID) {
+          pressed = binding.scancode < numKeys && (kbState[binding.scancode] || taps.key(binding.scancode));
+        } else if (is_mouse_scancode(binding.scancode)) {
+          pressed = is_mouse_button_pressed(binding.scancode, taps);
+        }
+        if (!pressed) {
+          continue;
+        }
+        switch (binding.padAxis) {
+        case PAD_AXIS_LEFT_X_POS:
+          lx += 127;
+          break;
+        case PAD_AXIS_LEFT_X_NEG:
+          lx -= 127;
+          break;
+        case PAD_AXIS_LEFT_Y_POS:
+          ly += 127;
+          break;
+        case PAD_AXIS_LEFT_Y_NEG:
+          ly -= 127;
+          break;
+        case PAD_AXIS_RIGHT_X_POS:
+          rx += 127;
+          break;
+        case PAD_AXIS_RIGHT_X_NEG:
+          rx -= 127;
+          break;
+        case PAD_AXIS_RIGHT_Y_POS:
+          ry += 127;
+          break;
+        case PAD_AXIS_RIGHT_Y_NEG:
+          ry -= 127;
+          break;
+        case PAD_AXIS_TRIGGER_L:
+          tl += 255;
+          break;
+        case PAD_AXIS_TRIGGER_R:
+          tr += 255;
+          break;
+        default:
+          break;
+        }
+      }
+      status[i].stickX = static_cast<s8>(std::clamp(static_cast<int>(status[i].stickX) + lx, -127, 127));
+      status[i].stickY = static_cast<s8>(std::clamp(static_cast<int>(status[i].stickY) + ly, -127, 127));
+      status[i].substickX = static_cast<s8>(std::clamp(static_cast<int>(status[i].substickX) + rx, -127, 127));
+      status[i].substickY = static_cast<s8>(std::clamp(static_cast<int>(status[i].substickY) + ry, -127, 127));
+      status[i].triggerLeft = static_cast<u8>(std::min(static_cast<int>(status[i].triggerLeft) + tl, 255));
+      status[i].triggerRight = static_cast<u8>(std::min(static_cast<int>(status[i].triggerRight) + tr, 255));
     }
 
     if (inputBlocked) {

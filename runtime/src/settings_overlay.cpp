@@ -650,7 +650,12 @@ bool DrawKeyboardSettings(uint32_t port) {
         });
     }
     if (!enabled) return false;
+#if defined(__EMSCRIPTEN__)
+    // On the web the keyboard is on for port 1 by default and adds to a pad there (pad.cpp).
+    ImGui::TextDisabled("Works alongside a gamepad on this port. F10 opens settings.");
+#else
     ImGui::TextDisabled("Replaces the gamepad on this port. F10 opens settings.");
+#endif
     if (ImGui::Button("Use WASD + mouse preset") || usePreset) {
         ApplyWasdPreset(port);
     }
@@ -784,9 +789,15 @@ void DrawControllerSettings() {
 
     ImGui::Separator();
     const uint32_t selectedGamePort = static_cast<uint32_t>(g_controllerPort);
-    if (DrawKeyboardSettings(selectedGamePort)) {
+    const bool keyboardOn = DrawKeyboardSettings(selectedGamePort);
+#if !defined(__EMSCRIPTEN__)
+    // Natively the keyboard replaces the pad, so there is nothing to assign; on the web both work.
+    if (keyboardOn) {
         return;
     }
+#else
+    (void)keyboardOn;
+#endif
     ImGui::Separator();
     const char* currentName = PADGetName(selectedGamePort);
     ImGui::Text("Assigned: %s", currentName != nullptr ? currentName : "None");
