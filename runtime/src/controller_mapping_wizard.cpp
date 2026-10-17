@@ -92,15 +92,28 @@ bool BindingUsed(const std::string& value) {
                        [&](const std::optional<std::string>& b) { return b && *b == value; });
 }
 
+// On the web, SDL's browser driver reports an axis as 32767 * value, so -32768 never comes from the
+// browser: it is SDL's own guess for a trigger axis it has not heard from yet (SDL_joystick.c sets
+// axes 4 and 5 of a 6-axis device to it). Treat it as unreported, i.e. centred.
+Sint16 WebAxisValue(Sint16 value) {
+#if defined(__EMSCRIPTEN__)
+    return value == SDL_MIN_SINT16 ? 0 : value;
+#else
+    return value;
+#endif
+}
+
 void SnapshotAxes() {
     g_wizard.axisBaseline.clear();
     const int axes = SDL_GetNumJoystickAxes(g_wizard.joystick);
     for (int i = 0; i < axes; ++i) {
-        g_wizard.axisBaseline.push_back(SDL_GetJoystickAxis(g_wizard.joystick, i));
+        g_wizard.axisBaseline.push_back(WebAxisValue(SDL_GetJoystickAxis(g_wizard.joystick, i)));
     }
 }
 
 void AdvanceStep(std::optional<std::string> value) {
+    RT_LOG(RT_TAG_CONFIG) << "controller wizard: " << kSteps[g_wizard.stepIndex].mappingKey << " = "
+                          << (value ? *value : std::string("(skipped)")) << std::endl;
     g_wizard.bindings[g_wizard.stepIndex] = std::move(value);
     ++g_wizard.stepIndex;
     g_wizard.acceptAfter = Clock::now() + kCaptureDebounce;
@@ -211,6 +224,7 @@ struct SetupCandidate {
     SDL_JoystickID id;
     std::string name;
     bool incompleteMapping;
+    bool genericMapping = false;  // web: the browser gave no standard layout and SDL guessed one
 };
 
 // A device needs setup when SDL has no gamepad mapping for it at all, or when
@@ -241,6 +255,15 @@ std::vector<SetupCandidate> CollectCandidates() {
         }
         const std::string mappingStr = mapping;
         SDL_free(mapping);
+#if defined(__EMSCRIPTEN__)
+        // A browser pad without Chrome's standard layout matches SDL's generic web mapping (named
+        // "*"), which rarely fits it; offer setup for those too.
+        const size_t nameStart = mappingStr.find(',');
+        if (nameStart != std::string::npos && mappingStr.compare(nameStart + 1, 2, "*,") == 0) {
+            candidates.push_back({id, name, true, true});
+            continue;
+        }
+#endif
         const bool hasStick = mappingStr.find("leftx:") != std::string::npos &&
                               mappingStr.find("lefty:") != std::string::npos;
         SDL_Joystick* joystick = SDL_GetGamepadJoystick(gamepad);
@@ -286,8 +309,35 @@ void HandleHatMotion(const SDL_JoyHatEvent& event) {
     AdvanceStep(value);
 }
 
-void HandleAxisMotion(const SDL_JoyAxisEvent& event) {
+void HandleAxisMotion(const SDL_JoyAxisEvent& rawEvent) {
+    SDL_JoyAxisEvent event = rawEvent;
+    event.value = WebAxisValue(event.value);
     const Step& step = kSteps[g_wizard.stepIndex];
+#if defined(__EMSCRIPTEN__)
+    // Without a standard layout, a browser reports a pad's D-pad hat as two axes, so on the web a
+    // D-pad step also takes one direction of an axis ("-a4", "+a5"). The axis rests at 0; its
+    // position, not the change from the snapshot taken while the previous direction was still
+    // held, gives the direction, so releasing one direction never binds the opposite one.
+    if (step.kind == StepKind::Button && std::string(step.mappingKey).rfind("dp", 0) == 0) {
+        // It must also have moved from where it was when the step began, so an axis that rests at
+        // an end (a browser's raw analog trigger rests at -1) is never taken for a D-pad.
+        const int32_t baseline =
+            event.axis < g_wizard.axisBaseline.size() ? g_wizard.axisBaseline[event.axis] : 0;
+        if (std::abs(static_cast<int32_t>(event.value)) < kStickThreshold ||
+            std::abs(static_cast<int32_t>(event.value) - baseline) < kStickThreshold) {
+            return;
+        }
+        const std::string axis = "a" + std::to_string(event.axis);
+        const std::string value = (event.value < 0 ? "-" : "+") + axis;
+        if (BindingUsed(value) || BindingUsed(axis) || BindingUsed(axis + "~")) {
+            g_wizard.status = "That direction is already bound";
+            return;
+        }
+        g_wizard.status.clear();
+        AdvanceStep(value);
+        return;
+    }
+#endif
     if (step.kind == StepKind::Button) {
         return;
     }
@@ -306,8 +356,8 @@ void HandleAxisMotion(const SDL_JoyAxisEvent& event) {
     const bool expectNegative = step.kind == StepKind::Stick;
     const bool inverted = expectNegative ? delta > 0 : delta < 0;
     std::string value = "a" + std::to_string(event.axis);
-    // Reject reusing an axis already bound (with or without inversion).
-    if (BindingUsed(value) || BindingUsed(value + "~")) {
+    // Reject reusing an axis already bound (with or without inversion, or one direction of it).
+    if (BindingUsed(value) || BindingUsed(value + "~") || BindingUsed("-" + value) || BindingUsed("+" + value)) {
         g_wizard.status = "That axis is already bound";
         return;
     }
@@ -344,6 +394,31 @@ void LoadPersistedMappings() {
                               << (added == 1 ? "" : "s") << std::endl;
     }
 }
+
+#if defined(__EMSCRIPTEN__)
+// SDL's browser joystick driver never reports an axis's starting value, so SDL takes the first
+// value it sees as the axis's rest position and sends no motion event for that first push. The
+// axis state is still right, so the wizard reads it every frame instead of waiting for events.
+void PollAxes() {
+    if (!g_wizard.active || g_wizard.joystick == nullptr || g_wizard.stepIndex >= kSteps.size() ||
+        Clock::now() < g_wizard.acceptAfter) {
+        return;
+    }
+    const int axes = SDL_GetNumJoystickAxes(g_wizard.joystick);
+    for (int i = 0; i < axes && g_wizard.active; ++i) {
+        SDL_JoyAxisEvent event{};
+        event.type = SDL_EVENT_JOYSTICK_AXIS_MOTION;
+        event.which = g_wizard.instance;
+        event.axis = static_cast<Uint8>(i);
+        event.value = SDL_GetJoystickAxis(g_wizard.joystick, i);
+        const size_t step = g_wizard.stepIndex;
+        HandleAxisMotion(event);
+        if (g_wizard.stepIndex != step) {
+            break;  // one binding per frame; the next step starts from a fresh snapshot
+        }
+    }
+}
+#endif
 
 void HandleSdlEvent(const SDL_Event& event) {
     if (!g_wizard.active) {
@@ -400,13 +475,19 @@ void DrawSetupList() {
             StartWizard(candidate.id);
         }
         if (candidate.incompleteMapping && ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("SDL matched a mapping without an analog stick for this device");
+            ImGui::SetTooltip(candidate.genericMapping
+                                  ? "The browser gives this controller no standard layout, so its buttons are "
+                                    "probably in the wrong places until it is set up"
+                                  : "SDL matched a mapping without an analog stick for this device");
         }
         ImGui::PopID();
     }
 }
 
 void Draw() {
+#if defined(__EMSCRIPTEN__)
+    PollAxes();
+#endif
     if (!g_wizard.active) {
         return;
     }
