@@ -72,6 +72,7 @@ struct WizardState {
     std::vector<int16_t> axisBaseline;
     Clock::time_point acceptAfter{};
     std::string status;
+    bool restoreGamepadNav = false;
 };
 
 WizardState g_wizard;
@@ -110,6 +111,9 @@ void StopWizard() {
     if (g_wizard.ownsJoystick && g_wizard.joystick != nullptr) {
         SDL_CloseJoystick(g_wizard.joystick);
     }
+    if (g_wizard.restoreGamepadNav && ImGui::GetCurrentContext() != nullptr) {
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    }
     g_wizard = WizardState{};
 }
 
@@ -136,6 +140,13 @@ void StartWizard(SDL_JoystickID instance) {
     g_wizard.deviceName = name != nullptr ? name : "Controller";
     g_wizard.acceptAfter = Clock::now() + kCaptureDebounce;
     SnapshotAxes();
+    // A device with a partial or generic mapping already counts as a gamepad, so its presses would
+    // also drive ImGui's gamepad navigation and press this window's own buttons (Close, Skip).
+    if (ImGui::GetCurrentContext() != nullptr) {
+        ImGuiIO& io = ImGui::GetIO();
+        g_wizard.restoreGamepadNav = (io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) != 0;
+        io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
+    }
 }
 
 std::string BuildMappingString() {
