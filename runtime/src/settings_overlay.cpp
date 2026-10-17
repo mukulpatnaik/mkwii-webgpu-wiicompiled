@@ -44,6 +44,7 @@
 #include <emscripten/em_asm.h>
 #include <emscripten/emscripten.h>
 #include "platform/web/web_vnet.h"
+#include "platform/web/web_gamepad_fallback.h"
 #endif
 
 #include <dolphin/pad.h>
@@ -1595,6 +1596,13 @@ void HandleEvents(const AuroraEvent* events) noexcept {
         if (ev->type == AURORA_CONTROLLER_ADDED || ev->type == AURORA_CONTROLLER_REMOVED) {
             g_configuredControllerIndices.fill(std::numeric_limits<int32_t>::min());
         }
+#if defined(__EMSCRIPTEN__)
+        // Browser pads without a standard layout start on SDL's generic mapping.
+        if (ev->type == AURORA_CONTROLLER_ADDED ||
+            (ev->type == AURORA_SDL_EVENT && ev->sdl.type == SDL_EVENT_JOYSTICK_ADDED)) {
+            WebGamepadFallback::Apply();
+        }
+#endif
         if (ev->type != AURORA_SDL_EVENT) {
             continue;
         }

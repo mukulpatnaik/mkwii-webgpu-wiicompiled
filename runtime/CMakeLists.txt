@@ -237,6 +237,37 @@ else()
     add_subdirectory(${MKW_AURORA_DIR} ${CMAKE_BINARY_DIR}/aurora-build EXCLUDE_FROM_ALL)
     set(CMAKE_DISABLE_PRECOMPILE_HEADERS OFF)
 
+    if(MKW_PLATFORM_WEB)
+        # The web SDL build compiles only the Emscripten part of SDL's gamepad database, so a
+        # browser pad without Chrome's "standard" layout falls back to SDL's generic mapping.
+        # Extract SDL's Linux table for src/platform/web/web_gamepad_fallback.cpp, which applies
+        # it when the browser runs on Linux (where the Gamepad API's raw order is SDL's evdev
+        # order). Without a vendored SDL source the table is empty and nothing changes.
+        include(FetchContent)
+        FetchContent_GetProperties(SDL)
+        set(MKW_WEB_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/web-generated")
+        set(_mkw_sdl_db "${sdl_SOURCE_DIR}/src/joystick/SDL_gamepad_db.h")
+        set(_mkw_linux_db "")
+        if(sdl_SOURCE_DIR AND EXISTS "${_mkw_sdl_db}")
+            file(STRINGS "${_mkw_sdl_db}" _mkw_sdl_db_lines)
+            set(_mkw_in_linux FALSE)
+            foreach(_mkw_line IN LISTS _mkw_sdl_db_lines)
+                if(_mkw_line MATCHES "^#if defined\\(SDL_JOYSTICK_LINUX\\)")
+                    set(_mkw_in_linux TRUE)
+                elseif(_mkw_in_linux AND _mkw_line MATCHES "^#endif")
+                    break()
+                elseif(_mkw_in_linux AND _mkw_line MATCHES "^    \"")
+                    string(APPEND _mkw_linux_db "${_mkw_line}\n")
+                endif()
+            endforeach()
+        endif()
+        file(WRITE "${MKW_WEB_GENERATED_DIR}/web_sdl_linux_gamepad_db.inc.tmp"
+             "// Generated from SDL's src/joystick/SDL_gamepad_db.h (Linux section). Do not edit.\n${_mkw_linux_db}")
+        configure_file("${MKW_WEB_GENERATED_DIR}/web_sdl_linux_gamepad_db.inc.tmp"
+                       "${MKW_WEB_GENERATED_DIR}/web_sdl_linux_gamepad_db.inc" COPYONLY)
+        include_directories("${MKW_WEB_GENERATED_DIR}")
+    endif()
+
     # Keep upstream Aurora split: several sources intentionally use file-local
     # names that collide under this repo's aggressive unity build settings.
     set(AURORA_TARGETS aurora_core aurora_gx aurora_pad aurora_si aurora_mtx aurora_vi)
