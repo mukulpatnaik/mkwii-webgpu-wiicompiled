@@ -1,0 +1,101 @@
+# Game-free checks for the web branch: the translator's unit tests, the runtime's unit tests
+# compiled to wasm (MKW_BUILD_PRODUCTS=OFF, so no translated game code is involved), the disc
+# reader crate, and the Node tests of the browser platform code. Nothing here needs a disc, the
+# extracted Assets/ or the translated generated/; the one generated header the tests include is
+# written from the committed PAL project manifest.
+#
+# Pinned versions mirror scripts/versions.env in the outer repository (mukulpatnaik/mkwii-webgpu).
+# Local timings on 2026-10-28 (24-core machine, 6 jobs, warm caches): translator build + 651
+# tests 8 s; wasm configure 29 s (FetchContent: mbedTLS, abseil, SDL3), build 17 s, ctest 1 s;
+# cargo disc reader 7 s; Node tests 2 s (142 pass, 2 skipped: they need a real disc image).
+name: Web checks
+
+on:
+  push:
+    branches: [athena-web-ntsc]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  translator:
+    name: Translator tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('translator/Translator.sln', '**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+      - run: dotnet test translator/Translator.sln -c Release --nologo
+
+  wasm:
+    name: Runtime unit tests (wasm) and Node tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EMSDK_VERSION: 6.0.11
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+          actions-cache-folder: emsdk-cache
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+      - name: Write generated/RuntimeConfig.h from the PAL project manifest
+        # region/guest_region.h includes generated/RuntimeConfig.h, which the translator writes
+        # from the project's small-data bases and guest address table. The tests only need those
+        # three committed values, so write the header without translating anything.
+        run: |
+          python3 - <<'PY'
+          import os, re
+          y = open('projects/mkwii/recomp.yml').read()
+          sda = re.search(r'^\s*sda_base:\s*(0x[0-9A-Fa-f]+)', y, re.M).group(1)
+          sda2 = re.search(r'^\s*sda2_base:\s*(0x[0-9A-Fa-f]+)', y, re.M).group(1)
+          table = re.search(r'^\s*guest_address_table:\s*(\S+)', y, re.M).group(1)
+          os.makedirs('generated', exist_ok=True)
+          with open('generated/RuntimeConfig.h', 'w') as f:
+              f.write('// Written by CI for the game-free unit tests from projects/mkwii/recomp.yml.\n'
+                      '#pragma once\n#include <cstdint>\n'
+                      f'#define MKW_GUEST_REGION_HEADER "{table}"\n'
+                      'namespace RuntimeConfig {\n'
+                      f'constexpr uint32_t SDA1_BASE = {sda}u;\n'
+                      f'constexpr uint32_t SDA2_BASE = {sda2}u;\n'
+                      '}\n')
+          print(open('generated/RuntimeConfig.h').read())
+          PY
+      - name: Configure (Emscripten, products off)
+        run: emcmake cmake -S runtime -B build-web-tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DMKW_BUILD_PRODUCTS=OFF
+      - name: Build
+        run: cmake --build build-web-tests --parallel 4
+      - name: Runtime unit tests under Node
+        run: ctest --test-dir build-web-tests --output-on-failure
+      - name: Build the disc reader (nod for wasm32)
+        run: cargo build --release --target wasm32-unknown-unknown --manifest-path runtime/src/platform/web/disc-wasm/Cargo.toml --target-dir build-disc-wasm
+      - name: Node tests of the browser platform code
+        env:
+          MKW_DISC_WASM: ${{ github.workspace }}/build-disc-wasm/wasm32-unknown-unknown/release/mkw_disc_wasm.wasm
+        run: node --test runtime/src/platform/web/tests/*.test.mjs
