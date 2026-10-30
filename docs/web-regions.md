@@ -88,7 +88,13 @@ Built with `emcmake` (Emscripten 6.0.11) and run in Chrome with WebGPU:
   `[web-pace]` reports 60 race steps/s with occasional catch-up skips. Before the change, none of
   these lines appeared on NTSC-U.
 
-The invite-room launcher and lag-wait removal need an online room and were not exercised.
+* **Invite room (2026-10-29):** two Chrome clients through the room relay vendored in the outer
+  repository (`tools/relay`) matched and raced on Luigi Circuit; `[vnet] joined the room`,
+  `[room-launch] login complete`, `character selection ready`, `[web-warm]` and
+  `[web-pace] race steps/s=60.0` on both. NTSC-U queues the ESRB notice (section `0x16`)
+  before the title, where PAL queues nothing; `web_room_launch.cpp` accepts it.
+
+The lag-wait removal needs a laggy peer and was not exercised.
 
 ## Possible existing NTSC-K problems (not web, not verified)
 

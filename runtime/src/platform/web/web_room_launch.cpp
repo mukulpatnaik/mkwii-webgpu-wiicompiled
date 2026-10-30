@@ -30,6 +30,7 @@ constexpr uint32_t kSectionUpdate = MKW_GADDR(806224F8);          // Section::Up
 constexpr uint32_t kAddPageLayer = MKW_GADDR(80622DA0);           // Section::AddPageLayer
 constexpr uint32_t kOnlineSection = 0x55;
 constexpr uint32_t kTitleSection = 0x3f;
+constexpr uint32_t kEsrbNoticeSection = 0x16;  // NTSC-U queues this notice before the title
 constexpr uint32_t kConnectPage = 0x84;
 constexpr uint32_t kSearchPage = 0x8f;
 constexpr uint32_t kCharacterPage = 0x6b;
@@ -230,10 +231,16 @@ void PrepareBoot(CpuContext* cpu) {
         return;
     }
     // Init has already validated NAND/save state. Preserve repair/create-save
-    // destinations, and any explicit developer launch destination.
+    // destinations, and any explicit developer launch destination. PAL boots with nothing
+    // queued after the title; NTSC-U queues its ESRB notice (0x16), which the direct entry below
+    // replaces like the title itself.
+    const uint32_t queued = Memory::Read32(manager + 8);
     if (Memory::Read32(manager + 4) != kTitleSection ||
-        Memory::Read32(manager + 8) != kNoPage ||
+        (queued != kNoPage && queued != kEsrbNoticeSection) ||
         Memory::Read8(save + 0x25000) || Memory::Read32(save + 0x25004)) {
+        std::printf("[room-launch] boot section=%02x page=%08x save flags=%02x/%08x (expected %02x/%08x/00/00000000)\n",
+                    Memory::Read32(manager + 4), Memory::Read32(manager + 8), Memory::Read8(save + 0x25000),
+                    Memory::Read32(save + 0x25004), kTitleSection, kNoPage);
         Manual("Your saved profile needs attention. Follow the game's setup screen.");
         return;
     }

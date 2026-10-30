@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The room relay a hosted page uses for online play (tools/relay in mukulpatnaik/mkwii-webgpu, deployed to
+     your own Cloudflare account); tools/hosting/stage-release.sh --rooms-host sets it. A page on 127.0.0.1 or
+     localhost uses ws://127.0.0.1:8787 instead (tools/relay/dev-local.sh); ?room=ws(s)://... overrides both. -->
+<meta name="mkw-rooms-host" content="mkw-rooms.athenaaa.workers.dev">
 <title>WiiCompiled</title>
 <style>
   :root {
@@ -171,7 +175,7 @@
         <button id="cancel-room-launch" class="link" hidden>Continue manually</button>
       </div>
       <p id="room-message" class="note" role="status">Choose a room before starting the game.</p>
-      <p class="note"><a href="https://github.com/Minithena/mariokartwebtest/tree/claude/vigilant-ride-auy5y2/tools/cloudflare/rooms" target="_blank" rel="noopener noreferrer">Room server source</a></p>
+      <p class="note"><a href="https://github.com/mukulpatnaik/mkwii-webgpu/tree/main/tools/relay" target="_blank" rel="noopener noreferrer">Room server source</a></p>
     </section>
     <div class="head">
       <h2>Controls</h2>
@@ -279,9 +283,12 @@
     };
   })();
 
-  // Online room (tools/cloudflare/rooms): "?room=<code>" from an invite link, or a full ws:// URL
-  // for a room server run locally with `wrangler dev`.
-  const ROOMS_HOST = 'mkw-rooms.athenaaa.workers.dev';
+  // Online room, through the relay in tools/relay of mukulpatnaik/mkwii-webgpu (Minithena's AGPL
+  // room Worker). A page on 127.0.0.1 or localhost uses one run locally (tools/relay/dev-local.sh,
+  // ws://127.0.0.1:8787); a hosted page uses the host in its <meta name="mkw-rooms-host"> tag, set
+  // when the release folder is staged. "?room=<code>" comes from an invite link; "?room=ws(s)://..."
+  // names a relay socket directly and wins over both.
+  const ROOMS_HOST = document.querySelector('meta[name="mkw-rooms-host"]')?.content || 'mkw-rooms.athenaaa.workers.dev';
   const localRoomServer = ['127.0.0.1', 'localhost'].includes(location.hostname);
   const roomsApi = localRoomServer ? 'http://127.0.0.1:8787' : `https://${ROOMS_HOST}`;
   const roomsSocket = roomsApi.replace(/^http/, 'ws');

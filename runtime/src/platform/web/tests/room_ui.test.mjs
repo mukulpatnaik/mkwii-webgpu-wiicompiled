@@ -126,11 +126,13 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
   controlsPanel.append(roomPanel);
   elements.get('room-name').value = 'Racer';
   const body = new Element('body');
+  const roomsHostMeta = { content: 'rooms.example.test' };
   const document = {
     body,
     activeElement: null,
     getElementById: (id) => elements.get(id),
     createElement: (tag) => new Element(tag),
+    querySelector: (selector) => selector === 'meta[name="mkw-rooms-host"]' ? roomsHostMeta : null,
     querySelectorAll: () => [],
   };
   const localValues = new Map();
@@ -916,4 +918,30 @@ test('Clear local game data stops the reader and asks for the disc again', async
   assert.equal(worker.terminated, true);
   assert.equal(elements.get('start').disabled, true);
   assert.match(elements.get('disc-status').textContent, /Cleared/);
+});
+
+test('Create room uses the local relay on 127.0.0.1 and the page\'s mkw-rooms-host tag elsewhere', async () => {
+  const cases = [
+    [{ href: 'http://127.0.0.1:8000/WiiCompiled.html', hostname: '127.0.0.1', search: '' }, 'http://127.0.0.1:8787/v1/rooms'],
+    [{ href: 'https://game.test/WiiCompiled.html', hostname: 'game.test', search: '' }, 'https://rooms.example.test/v1/rooms'],
+  ];
+  for (const [location, expected] of cases) {
+    const requests = [];
+    const fetch = async (url, options) => {
+      if (!String(url).includes('/v1/rooms')) return stagedSiteFetch(url, options);
+      requests.push(String(url));
+      return { ok: true, json: async () => ({ code: 'abcdefghjkmn' }) };
+    };
+    const { context, elements } = setupRoomPage('?', { gpu: workingGpu, userAgent: 'test' }, { location, fetch });
+    elements.get('create-room').dispatch('click');
+    for (let n = 0; n < 10 && !requests.length; n++) await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(requests, [expected]);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(new URL(context.location.href).searchParams.get('room'), 'abcdefghjkmn');
+  }
+});
+
+test('a ws:// room parameter names the relay socket directly', () => {
+  const { sockets } = setupRoomPage('?room=ws://127.0.0.1:9999/v1/rooms/abcdefghjkmn/ws');
+  assert.equal(sockets[0]?.url, 'ws://127.0.0.1:9999/v1/rooms/abcdefghjkmn/lobby');
 });
