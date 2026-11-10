@@ -150,8 +150,8 @@
   #diag summary { cursor: pointer; text-align: center; }
   #diag-text { white-space: pre-wrap; word-break: break-word; margin: 8px 0 4px; user-select: text; }
   #diag button.link { color: #e6edf5; background: #ffffff22; border-color: #ffffff55; }
-  /* The player's own disc image (mkw_disc_worker.js). Before the game starts it sits above the
-     Start button as a tile; afterwards it moves into the controls panel. */
+  /* The player's own disc image (mkw_disc_worker.js). Before the game starts it is the menu's
+     first screen (below); afterwards it moves into the controls panel. */
   #disc-panel { width: min(440px, calc(100% - 40px)); background: var(--card); color: var(--text);
     border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px; box-sizing: border-box;
     box-shadow: 0 8px 20px rgba(0, 0, 0, .25); }
@@ -169,35 +169,370 @@
   #controls #disc-panel { width: auto; background: none; border: 0; border-bottom: 1px solid var(--line);
     border-radius: 0; padding: 0 0 16px; margin-bottom: 16px; box-shadow: none; }
   #controls #disc-panel .disc-actions, #controls #disc-intro { display: none; }
+  /* Before the game starts the overlay is the whole page (body.pregame): a menu in the game's
+     own look, navy with yellow. With a local disc image it opens on the disc screen, since
+     nothing else works without one; then come four choices: Solo, Play with friends, Controls,
+     Saves. Start drops the class: the overlay is again the small layer over the game picture,
+     and the room, disc, key, save and problem blocks sit in the controls panel. */
+  body.pregame #controls { visibility: hidden; }
+  body.pregame #overlay { position: fixed; inset: 0; z-index: 10; border-radius: 0; padding: 0;
+    color: #e8f0f8; background-color: #0b1f4f;
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, .035) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, .035) 75%),
+      linear-gradient(45deg, rgba(255, 255, 255, .035) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, .035) 75%),
+      linear-gradient(#17367a, #0a1a44);
+    background-size: 56px 56px, 56px 56px, 100% 100%; background-position: 0 0, 28px 28px, 0 0; }
+  /* A problem before Start replaces the menu with the message, on the same ground. */
+  body.pregame #overlay > #status { color: #fff; font-size: 18px; font-weight: 800; }
+  /* The pieces shared with the controls panel (pills, key caps, inputs, notes) take the menu's
+     colours here, and the page theme's once they sit in the controls panel. */
+  body.pregame #overlay, #problems-dialog {
+    color-scheme: dark;
+    --panel: #143373; --line: #4f86c6; --text: #e8f0f8; --muted: #b9d3f2;
+    --key-bg: #1b3a75; --key-line: #5d8fd0; --accent: #ffd21f;
+    --primary-bg: linear-gradient(#fff2a8, #ffe14d 45%, #f5c400 55%, #ffd21f);
+    --primary-line: #6b5a00; --primary-text: #3a3000;
+    --ghost-bg: #10295c; --ghost-line: #4f86c6; --ghost-text: #e8f0f8;
+    --input-bg: #0b1f4f; --input-line: #5d8fd0; --ok: #9df0bd; --error: #ffb4a8; --card: transparent; }
+  #menu, #problems-dialog { color: var(--text); font-size: 16px; }
+  #menu { flex: 1 0 auto; align-self: stretch; display: flex; flex-direction: column; }
+  #menu[hidden], #menu [hidden] { display: none !important; }
+  #menu :focus-visible, #problems-dialog :focus-visible { outline: 3px solid #ffd21f; outline-offset: 3px; }
+  #menu .note { font-size: 14px; margin: 10px 0 0; }
+  #menu h3 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #ffd21f;
+             margin: 0 0 8px; font-weight: 800; }
+  #menu button.link, #problems-dialog button.link { font-size: 14px; padding: 8px 16px; border-width: 2px;
+                                                    box-shadow: none; }
+  #menu svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #menu-head { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+               padding: clamp(14px, 3vh, 28px) clamp(16px, 4vw, 48px); }
+  #menu-head h1 { margin: 0; font-size: clamp(26px, 3.4vw, 42px); line-height: 1.1; font-weight: 900;
+                  font-style: italic; color: #fff; text-shadow: 0 3px 0 #06112e; }
+  #menu-head h1 span { margin-left: .4em; font-size: .43em; font-weight: 800; color: #ffd21f; white-space: nowrap;
+                       text-shadow: 0 2px 0 #06112e; }
+  #menu-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #disc-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #9df0bd; }
+  #disc-chip svg { width: 20px; height: 20px; stroke-width: 3; }
+  #menu-body { flex: 1 0 auto; display: flex; align-items: center; justify-content: center;
+               padding: 8px clamp(16px, 4vw, 48px) 28px; }
+  #menu-body > div { display: none; width: 100%; }
+  #menu[data-view="boot"] #view-boot { display: block; text-align: center; color: #b9d3f2; font-weight: 700; }
+  /* The disc screen. */
+  #menu[data-view="disc"] #view-disc { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  #disc-invite { margin: 0; padding: 9px 20px; border-radius: 999px; background: #ffd21f; color: #3a3000;
+                 font-weight: 800; text-align: center; }
+  #disc-tagline { margin: 0; color: #b9d3f2; font-weight: 700; text-align: center; }
+  #menu #disc-panel { width: min(820px, 100%); display: flex; align-items: center; gap: clamp(20px, 4vw, 48px);
+    border: 3px solid #4f86c6; border-radius: 28px; background: linear-gradient(#143373, #0d2255);
+    box-shadow: 0 4px 0 #06112e; padding: clamp(22px, 4vh, 44px) clamp(20px, 4vw, 48px); }
+  #disc-main { flex: 1; min-width: 0; }
+  #menu #disc-panel h2 { margin: 0 0 8px; font-size: clamp(26px, 3vw, 36px); line-height: 1.15; font-weight: 900;
+                         font-style: italic; color: #fff; }
+  #menu #disc-panel .note { margin: 0 0 20px; font-size: 16px; color: #d3e4f8; }
+  #menu .disc-actions { gap: 12px; }
+  #menu #disc-status { margin: 16px 0 12px; min-height: 1.4em; font-size: 15px; }
+  /* One heading and one line of help for three states: nothing chosen (.pre), a remembered disc
+     image that needs the player's go-ahead (.back), and an accepted one (.post), which is also
+     how the panel reads in the controls. */
+  #disc-panel .back, #disc-panel .post, #disc-panel.returning .pre, #disc-panel[data-disc="ok"] .pre,
+  #disc-panel[data-disc="ok"] #disc-intro, #controls #disc-panel .pre, #controls #disc-panel .back,
+  #controls #disc-art { display: none; }
+  #disc-panel.returning .back, #disc-panel[data-disc="ok"] .post, #controls #disc-panel .post { display: inline; }
+  /* The disc art: an empty slot, the disc (turning while it is read), and a tick once accepted. */
+  #disc-art { flex: none; width: clamp(120px, 18vw, 220px); height: auto; }
+  #disc-panel[data-disc="none"] #disc-art .disc, #disc-panel:not([data-disc="none"]) #disc-art .slot,
+  #disc-panel:not([data-disc="ok"]) #disc-art .badge { display: none; }
+  #disc-panel[data-disc="reading"] #disc-art .disc { transform-origin: 120px 120px; animation: disc-spin 1.4s linear infinite; }
+  @keyframes disc-spin { to { transform: rotate(360deg); } }
+  /* The big buttons: yellow for the one to press, an outline for the other. */
+  #menu .disc-actions button { min-height: 64px; padding: 8px 30px; border-radius: 22px; border: 3px solid #7fb6ec;
+    background: none; color: #fff; box-shadow: none; font-size: clamp(17px, 2vw, 22px); font-weight: 900; font-style: italic; }
+  #menu #start { min-height: 80px; padding: 8px 56px; border-width: 3px; border-radius: 22px;
+                 font-size: clamp(22px, 2.4vw, 28px); }
+  #menu #start:not(:disabled), #menu #disc-reuse, #menu #disc-back,
+  #menu #disc-panel:not(.returning):not([data-disc="ok"]) #disc-pick {
+    border: 3px solid #6b5a00; color: #3a3000; box-shadow: 0 5px 0 #06112e; text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
+    background: linear-gradient(#fff2a8, #ffe14d 45%, #f5c400 55%, #ffd21f); }
+  #menu #start:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 #06112e; }
+  /* The four choices and the panel of the chosen one. */
+  #menu[data-view="menu"] #view-menu { display: grid; grid-template-columns: minmax(240px, 5fr) minmax(0, 8fr);
+    gap: clamp(20px, 3vw, 48px); max-width: 1290px; }
+  #menu-nav { display: flex; flex-direction: column; gap: 16px; }
+  #menu-nav button { flex: 1; display: flex; align-items: center; gap: 18px; min-height: clamp(80px, 13vh, 116px);
+    padding: 8px 22px; border: 3px solid #5d8fd0; border-radius: 24px; background: linear-gradient(#eef4ff, #c9dcf6);
+    box-shadow: 0 4px 0 #06112e; color: #12305f; font: inherit; text-align: left; cursor: pointer; }
+  #menu-nav button[aria-current="true"] { border: 4px solid #ffd21f; background: linear-gradient(#fff, #e3eeff);
+    box-shadow: 0 0 0 6px rgba(255, 210, 31, .3), 0 4px 0 #06112e; }
+  #menu-nav button:disabled { opacity: .55; cursor: default; }
+  #menu-nav .tile { flex: none; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px;
+                    background: #12305f; color: #fff; }
+  #menu-nav [aria-current="true"] .tile { color: #ffd21f; }
+  #menu-nav svg { width: 32px; height: 32px; }
+  #menu-nav b { display: block; font-size: clamp(19px, 2vw, 24px); line-height: 1.15; font-weight: 900; font-style: italic; }
+  #menu-nav small { display: block; margin-top: 2px; font-size: 14px; font-weight: 700; color: #3d5f93; }
+  #menu-panels { min-width: 0; display: flex; }
+  #menu-panels > section { display: none; flex: 1; min-width: 0; box-sizing: border-box; overflow-y: auto;
+    min-height: min(480px, calc(100vh - 230px)); max-height: max(420px, calc(100vh - 230px)); border: 3px solid #4f86c6; border-radius: 28px;
+    background: linear-gradient(#143373, #0d2255); box-shadow: 0 4px 0 #06112e;
+    padding: clamp(18px, 3vh, 32px) clamp(18px, 2.5vw, 36px); }
+  #menu[data-item="solo"] #panel-solo, #menu[data-item="friends"] #panel-friends,
+  #menu[data-item="controls"] #panel-controls, #menu[data-item="saves"] #panel-saves { display: flex; flex-direction: column; }
+  #menu-panels h2 { margin: 0 0 10px; font-size: clamp(22px, 2.4vw, 28px); line-height: 1.15; font-weight: 900;
+                    font-style: italic; color: #fff; }
+  #panel-solo { align-items: center; justify-content: center; text-align: center; }
+  #start-slot-solo { margin: 22px 0 12px; }
+  #solo-disc { overflow-wrap: anywhere; }
+  #menu #panel-friends { overflow: hidden; }
+  #menu #lobby-card { flex: 0 1 auto; min-height: 0; width: auto; max-height: none; background: none; border: 0;
+                      border-radius: 0; padding: 2px; box-shadow: none; }
+  #menu #room-panel input { display: block; max-width: 440px; padding: 11px 14px; border-width: 2px; font-size: 16px; }
+  #menu #room-panel label { display: block; font-weight: 700; }
+  #menu #room-panel .head { margin-top: 16px; }
+  #menu #room-panel .head h3 { margin: 0; }
+  #menu #create-room { font-size: 18px; font-weight: 900; font-style: italic; padding: 12px 28px; border-radius: 16px; }
+  #start-slot-friends { flex: none; margin-top: 12px; padding-top: 14px; border-top: 2px solid rgba(79, 134, 198, .45);
+                        text-align: center; }
+  #start-slot-friends:empty { display: none; }
+  #menu #bindings-block { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; align-items: start; }
+  #menu #bindings-block > :not(.group) { grid-column: 1 / -1; margin: 0; }
+  #menu #bindings-block > .tall { grid-row: span 2; }
+  #menu #volume-control, #menu #saves-panel h3 { display: none; }
+  #saves-panel:not([hidden]) + #saves-wait { display: none; }
+  /* The strip along the bottom: what the selected choice does, and how far the game has loaded.
+     The game's own loading messages (#status) drive the bar; any other message shows as text. */
+  #menu-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px 24px;
+    min-height: 84px; box-sizing: border-box; padding: 12px clamp(16px, 4vw, 48px); background: #06112e;
+    border-top: 3px solid #4f86c6; }
+  #foot-desc { margin: 0; font-size: clamp(15px, 1.6vw, 18px); font-weight: 800; }
+  #foot-load { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0;
+               color: #b9d3f2; font-size: 13px; font-weight: 700; }
+  #load-bar { flex: none; width: 150px; height: 10px; border-radius: 999px; background: #1b3a75; overflow: hidden; }
+  #load-fill { display: block; width: 35%; height: 100%; border-radius: 999px; background: #ffd21f;
+               animation: load-slide 1.4s ease-in-out infinite; }
+  #load-bar.known #load-fill { animation: none; transition: width .2s; }
+  @keyframes load-slide { from { margin-left: -35%; } to { margin-left: 100%; } }
+  #load-pct { min-width: 3ch; font-variant-numeric: tabular-nums; }
+  #load-pct:empty { display: none; }
+  #load-done { color: #9df0bd; }
+  #menu #status, #menu:not(.loaded) #load-done, #menu.loaded #load-label, #menu.loaded #load-bar,
+  #menu.loaded #load-pct, #foot-load.notice > :not(#status) { display: none; }
+  #menu #foot-load.notice #status { display: block; min-height: 0; max-width: 560px; padding: 0; color: #ffe08a;
+                                    text-align: right; }
+  @media (prefers-reduced-motion: reduce) {
+    #load-fill, #disc-panel[data-disc="reading"] #disc-art .disc { animation: none; }
+  }
+  #problems-dialog { width: min(520px, calc(100% - 48px)); box-sizing: border-box; border: 3px solid #4f86c6;
+    border-radius: 24px; background: linear-gradient(#143373, #0d2255); box-shadow: 0 6px 0 #06112e; padding: 24px 28px; }
+  #problems-dialog::backdrop { background: #030a1ecc; }
+  #problems-dialog h2 { margin: 0 0 10px; font-size: 24px; font-weight: 900; font-style: italic; color: #fff; }
+  #problems-dialog h3 { display: none; }
+  #problems-dialog .note { font-size: 14px; }
+  #problems-dialog form { margin: 18px 0 0; text-align: right; }
   /* Narrow windows: controls go below the game. */
   @media (max-width: 760px) {
     #layout { flex-direction: column; }
     #controls { width: auto; max-height: 40%; margin: 0 12px 12px; }
+    /* The menu: its choices become a row of four above the panel, and the page scrolls. */
+    #menu-body { align-items: flex-start; }
+    #menu[data-view="menu"] #view-menu { grid-template-columns: minmax(0, 1fr); }
+    #menu-nav { flex-direction: row; flex-wrap: wrap; gap: 10px; }
+    #menu-nav button { flex: 1 1 calc(50% - 10px); min-height: 60px; gap: 10px; padding: 6px 12px; border-radius: 18px; }
+    #menu-nav .tile { width: 40px; height: 40px; border-radius: 12px; }
+    #menu-nav svg { width: 24px; height: 24px; }
+    #menu-nav small { display: none; }
+    #menu-panels > section { min-height: 0; max-height: none; }
+    #menu #disc-panel { flex-direction: column; text-align: center; }
+    #menu .disc-actions { justify-content: center; }
+    #menu #bindings-block { grid-template-columns: minmax(0, 1fr); }
+    #menu-foot { flex-direction: column; align-items: flex-start; }
+    #foot-load { flex-wrap: wrap; justify-content: flex-start; }
+    #foot-load.notice #status { text-align: left; }
   }
 </style>
 </head>
-<body>
+<body class="pregame">
 <div id="layout">
   <div id="stage">
     <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
     <button id="show-controls" class="link" hidden>Show controls</button>
     <div id="overlay">
-      <div id="lobby-card" hidden></div>
-      <section id="disc-panel" aria-label="Game disc" hidden>
-        <h2>Your game disc</h2>
-        <p class="note" id="disc-intro">Choose your own Mario Kart Wii disc image (WBFS, ISO or CISO), or drop it
-          here. It is read on this device and never uploaded.</p>
-        <div class="disc-actions">
-          <button type="button" id="disc-pick">Choose disc image…</button>
-          <button type="button" id="disc-reuse" hidden></button>
+      <!-- The menu before the game starts (body.pregame). Its room, key, save and problem blocks
+           move into the controls panel when the game starts. -->
+      <div id="menu" data-view="boot" data-item="solo">
+        <header id="menu-head">
+          <h1>Mario Kart Wii <span>in your browser</span></h1>
+          <div id="menu-tools">
+            <span id="disc-chip" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="disc-chip-text"></span></span>
+            <button type="button" id="change-disc" class="link" hidden>Change disc</button>
+            <button type="button" id="open-problems" class="link">Problems</button>
+          </div>
+        </header>
+        <div id="menu-body">
+          <div id="view-boot">Getting ready…</div>
+          <div id="view-disc">
+            <p id="disc-invite" hidden>You are joining a room. Choose your disc image to continue.</p>
+            <section id="disc-panel" aria-label="Game disc" data-disc="none" hidden>
+              <svg id="disc-art" viewBox="0 0 240 240" aria-hidden="true">
+                <g class="slot" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="120" cy="120" r="112" fill="#0b1f4f" stroke="#7fb6ec" stroke-width="3" stroke-dasharray="12 10"/>
+                  <circle cx="120" cy="120" r="44" stroke="#4f86c6" stroke-width="3"/>
+                  <circle cx="120" cy="120" r="14" fill="#143373" stroke="#7fb6ec" stroke-width="3"/>
+                  <path d="M120 60v38m0 0-14-14m14 14 14-14" stroke="#ffd21f" stroke-width="6"/>
+                </g>
+                <g class="disc" fill="none">
+                  <circle cx="120" cy="120" r="112" fill="#cfe6fb" stroke="#fff" stroke-width="4"/>
+                  <circle cx="120" cy="120" r="96" stroke="#fff" stroke-width="8" opacity=".7"/>
+                  <path d="M44 92A82 82 0 0 1 116 38" stroke="#fff" stroke-width="16" stroke-linecap="round"/>
+                  <circle cx="120" cy="120" r="44" fill="#eef4ff" stroke="#7fb6ec" stroke-width="3"/>
+                  <circle cx="120" cy="120" r="14" fill="#143373" stroke="#7fb6ec" stroke-width="3"/>
+                </g>
+                <g class="badge" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="192" cy="192" r="30" fill="#157a43" stroke="#fff" stroke-width="5"/>
+                  <path d="M178 193l10 10 18-20" stroke="#fff" stroke-width="6"/>
+                </g>
+              </svg>
+              <div id="disc-main">
+                <h2><span class="pre">Bring your own disc</span><span class="back">Welcome back</span><span class="post">Your game disc</span></h2>
+                <p class="note" id="disc-intro"><span class="pre">Choose your own Mario Kart Wii disc image (WBFS, ISO or
+                  CISO), or drop it here. It is read on this device and never uploaded.</span><span class="back">This
+                  browser remembers where your disc image is. It needs your go-ahead to read it again.</span></p>
+                <div class="disc-actions">
+                  <button type="button" id="disc-reuse" hidden></button>
+                  <button type="button" id="disc-back" hidden>Back to the menu</button>
+                  <button type="button" id="disc-pick">Choose disc image…</button>
+                </div>
+                <input type="file" id="disc-file" accept=".wbfs,.iso,.ciso,.gcm" hidden>
+                <p id="disc-status" role="status" aria-live="polite"></p>
+                <button type="button" id="disc-clear" class="link">Clear local game data</button>
+              </div>
+            </section>
+            <p id="disc-tagline">Solo or online with friends. Keyboard and mouse, or a game controller.</p>
+          </div>
+          <div id="view-menu">
+            <nav id="menu-nav" aria-label="Menu">
+              <button type="button" id="nav-solo" aria-current="true"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h12l-2.5 4 2.5 4H5"/></svg></span><span><b>Solo</b><small id="nav-solo-desc">Race on your own</small></span></button>
+              <button type="button" id="nav-friends" aria-current="false"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19"/><circle cx="10" cy="8" r="3.5"/><path d="M20 19v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.7a3.5 3.5 0 0 1 0 6.6"/></svg></span><span><b>Play with friends</b><small id="nav-friends-desc">Create a room or enter an invite code</small></span></button>
+              <button type="button" id="nav-controls" aria-current="false"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></span><span><b>Controls</b><small>Keyboard, mouse or a controller</small></span></button>
+              <button type="button" id="nav-saves" aria-current="false"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14"/></svg></span><span><b>Saves</b><small>Export, import and back up</small></span></button>
+            </nav>
+            <div id="menu-panels">
+              <section id="panel-solo" aria-label="Solo">
+                <h2>Ready to race</h2>
+                <p class="note" id="solo-disc" hidden></p>
+                <div id="start-slot-solo"><button id="start" disabled>Loading…</button></div>
+                <p class="note">Racing friends instead? Open Play with friends before you start.</p>
+              </section>
+              <section id="panel-friends" aria-label="Play with friends">
+                <div id="lobby-card">
+                  <section id="room-panel" aria-label="Online room">
+                    <h2>Play with friends</h2>
+                    <div id="room-setup">
+                      <button id="create-room" class="link">Create room</button>
+                      <label for="room-code" class="note">Or enter an invite code</label>
+                      <input id="room-code" placeholder="Room code" maxlength="32" autocapitalize="off" spellcheck="false">
+                      <button id="join-room" class="link">Join room</button>
+                    </div>
+                    <div id="room-invite" hidden>
+                      <label for="room-name">Your name</label>
+                      <input id="room-name" placeholder="Choose a display name" maxlength="24" autocomplete="off" spellcheck="false" aria-describedby="room-name-hint">
+                      <p id="room-name-hint" class="note">Also your name in the game (first 10 characters). Set it before you press Play.</p>
+                      <label for="invite-link">Invite link</label>
+                      <input id="invite-link" readonly aria-label="Invite link">
+                      <div class="room-actions">
+                        <button id="copy-invite" class="link">Copy invite</button>
+                        <button id="leave-room" class="link">Leave room &amp; reload</button>
+                      </div>
+                      <div class="head"><h3>In this room</h3><span id="room-count">0 / 12</span></div>
+                      <ul id="room-roster" aria-label="Connected players" aria-live="polite"></ul>
+                      <p id="room-connection" class="note" role="status">Start the game to connect.</p>
+                      <p id="room-game-status" class="note" role="status"></p>
+                      <button id="cancel-room-launch" class="link" hidden>Continue manually</button>
+                    </div>
+                    <p id="room-message" class="note" role="status">Create a room and share its link, or enter the code from a friend’s invite.</p>
+                    <p class="note"><a href="https://github.com/mukulpatnaik/mkwii-webgpu/tree/main/tools/relay" target="_blank" rel="noopener noreferrer">Room server source</a></p>
+                  </section>
+                </div>
+                <div id="start-slot-friends"></div>
+                <p class="note" id="room-reload-note"></p>
+              </section>
+              <section id="panel-controls" aria-label="Controls">
+                <h2>Controls</h2>
+                <div id="bindings-block">
+                  <div id="volume-control">
+                    <div class="volume-row">
+                      <label for="volume">Volume</label>
+                      <output id="volume-value" for="volume">100%</output>
+                      <button id="toggle-mute" class="link" disabled>Mute</button>
+                    </div>
+                    <input id="volume" type="range" min="0" max="100" step="1" value="100" aria-label="Master volume" disabled>
+                  </div>
+                  <p id="save-status" class="note" role="status" hidden></p>
+                  <p class="note" id="binding-help" role="status">Start the game, then click a key to change it.</p>
+                  <div class="group tall">
+                    <h3>Driving</h3>
+                    <dl>
+                      <dt><button type="button" class="binding" data-bind="axis1" disabled>A</button><button type="button" class="binding" data-bind="axis0" disabled>D</button></dt><dd>Steer</dd>
+                      <dt><button type="button" class="binding" data-bind="a" disabled>Left click</button></dt><dd>Accelerate</dd>
+                      <dt><button type="button" class="binding" data-bind="b" disabled>Space</button></dt><dd>Brake / reverse</dd>
+                      <dt><button type="button" class="binding" data-bind="r" disabled>Right click</button></dt><dd>Drift, hop</dd>
+                      <dt><button type="button" class="binding" data-bind="up" disabled>↑</button></dt><dd>Trick (in the air, as you leave a ramp)</dd>
+                      <dt><button type="button" class="binding" data-bind="l" disabled>Shift</button></dt><dd>Use item</dd>
+                      <dt><button type="button" class="binding" data-bind="axis2" disabled>W</button><button type="button" class="binding" data-bind="axis3" disabled>S</button></dt><dd>Aim item forward / back</dd>
+                      <dt><button type="button" class="binding" data-bind="start" disabled>Enter</button></dt><dd>Pause</dd>
+                    </dl>
+                  </div>
+                  <div class="group">
+                    <h3>Menus</h3>
+                    <dl>
+                      <dt><button type="button" class="binding" data-bind="axis2" disabled>W</button><button type="button" class="binding" data-bind="axis1" disabled>A</button><button type="button" class="binding" data-bind="axis3" disabled>S</button><button type="button" class="binding" data-bind="axis0" disabled>D</button></dt><dd>Move</dd>
+                      <dt><button type="button" class="binding" data-bind="a" disabled>Left click</button></dt><dd>Confirm (A)</dd>
+                      <dt><button type="button" class="binding" data-bind="b" disabled>Space</button></dt><dd>Back (B)</dd>
+                      <dt><button type="button" class="binding" data-bind="up" disabled>↑</button><button type="button" class="binding" data-bind="left" disabled>←</button><button type="button" class="binding" data-bind="down" disabled>↓</button><button type="button" class="binding" data-bind="right" disabled>→</button></dt><dd>D-pad</dd>
+                    </dl>
+                  </div>
+                  <div class="group">
+                    <h3>Game</h3>
+                    <dl>
+                      <dt><kbd>F10</kbd></dt><dd>Settings and key bindings</dd>
+                      <dt><button type="button" class="binding" data-bind="mute" disabled>\</button></dt><dd>Mute / unmute</dd>
+                    </dl>
+                  </div>
+                  <p class="note" id="keyboard-off" hidden>The keyboard is turned off for player 1: turn it on in
+                    <kbd>F10</kbd> → Controller settings.</p>
+                  <p class="note">A game controller works too. On a Mac keyboard, press <kbd>fn</kbd>+<kbd>F10</kbd>.</p>
+                </div>
+              </section>
+              <section id="panel-saves" aria-label="Saves">
+                <h2>Saves</h2>
+                <!-- Saves: export, import and backups of the save and settings (mkw_saves.js). -->
+                <section id="saves-panel" aria-label="Saves" hidden>
+                  <h3>Saves</h3>
+                  <p class="note" id="saves-storage" role="status" style="margin-top: 0"></p>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px">
+                    <button type="button" id="saves-export" class="link" title="Download rksys.dat">Export save</button>
+                    <button type="button" id="saves-backup" class="link" title="Download the save and settings as a .zip">Export backup</button>
+                    <button type="button" id="saves-import" class="link" title="Load an rksys.dat or a backup .zip">Import…</button>
+                    <button type="button" id="saves-restore" class="link" title="Undo the last import" hidden>Restore previous save</button>
+                  </div>
+                  <input type="file" id="saves-file" accept=".dat,.zip,application/zip,application/octet-stream" hidden>
+                  <p class="note" id="saves-message" role="status" style="margin-top: 8px"></p>
+                </section>
+                <p class="note" id="saves-wait">Your saves show here once the game has loaded.</p>
+              </section>
+            </div>
+          </div>
         </div>
-        <input type="file" id="disc-file" accept=".wbfs,.iso,.ciso,.gcm" hidden>
-        <p id="disc-status" role="status" aria-live="polite"></p>
-        <button type="button" id="disc-clear" class="link">Clear local game data</button>
-      </section>
-      <button id="start" disabled>Loading…</button>
+        <footer id="menu-foot">
+          <p id="foot-desc"></p>
+          <div id="foot-load">
+            <span id="load-label">Loading the game</span>
+            <div id="load-bar"><i id="load-fill"></i></div>
+            <span id="load-pct"></span>
+            <span id="load-done">Game loaded</span>
+            <div id="status"></div>
+          </div>
+        </footer>
+      </div>
       <button id="reload" hidden onclick="location.reload()">Reload</button>
-      <div id="status"></div>
       <div id="hint" hidden></div>
       <details id="diag" hidden>
         <summary>Technical details</summary>
@@ -208,33 +543,6 @@
     </div>
   </div>
   <aside id="controls" aria-label="Controls">
-    <section id="room-panel" aria-label="Online room">
-      <h2>Play with friends</h2>
-      <div id="room-setup">
-        <button id="create-room" class="link">Create room</button>
-        <label for="room-code" class="note">Or enter an invite code</label>
-        <input id="room-code" placeholder="Room code" maxlength="32" autocapitalize="off" spellcheck="false">
-        <button id="join-room" class="link">Join room</button>
-      </div>
-      <div id="room-invite" hidden>
-        <label for="room-name">Your name</label>
-        <input id="room-name" placeholder="Choose a display name" maxlength="24" autocomplete="off" spellcheck="false" aria-describedby="room-name-hint">
-        <p id="room-name-hint" class="note">Also your name in the game (first 10 characters). Set it before you press Play.</p>
-        <label for="invite-link">Invite link</label>
-        <input id="invite-link" readonly aria-label="Invite link">
-        <div class="room-actions">
-          <button id="copy-invite" class="link">Copy invite</button>
-          <button id="leave-room" class="link">Leave room &amp; reload</button>
-        </div>
-        <div class="head"><h3>In this room</h3><span id="room-count">0 / 12</span></div>
-        <ul id="room-roster" aria-label="Connected players" aria-live="polite"></ul>
-        <p id="room-connection" class="note" role="status">Start the game to connect.</p>
-        <p id="room-game-status" class="note" role="status"></p>
-        <button id="cancel-room-launch" class="link" hidden>Continue manually</button>
-      </div>
-      <p id="room-message" class="note" role="status">Choose a room before starting the game.</p>
-      <p class="note"><a href="https://github.com/mukulpatnaik/mkwii-webgpu/tree/main/tools/relay" target="_blank" rel="noopener noreferrer">Room server source</a></p>
-    </section>
     <div class="head">
       <h2>Controls</h2>
       <div class="actions">
@@ -242,55 +550,11 @@
         <button id="hide-controls" class="link">Hide</button>
       </div>
     </div>
-    <div id="volume-control">
-      <div class="volume-row">
-        <label for="volume">Volume</label>
-        <output id="volume-value" for="volume">100%</output>
-        <button id="toggle-mute" class="link" disabled>Mute</button>
-      </div>
-      <input id="volume" type="range" min="0" max="100" step="1" value="100" aria-label="Master volume" disabled>
-    </div>
-    <p id="save-status" class="note" role="status" hidden></p>
-    <p class="note" id="binding-help" role="status">Start the game, then click a key to change it.</p>
-    <h3>Driving</h3>
-    <dl>
-      <dt><button type="button" class="binding" data-bind="axis1" disabled>A</button><button type="button" class="binding" data-bind="axis0" disabled>D</button></dt><dd>Steer</dd>
-      <dt><button type="button" class="binding" data-bind="a" disabled>Left click</button></dt><dd>Accelerate</dd>
-      <dt><button type="button" class="binding" data-bind="b" disabled>Space</button></dt><dd>Brake / reverse</dd>
-      <dt><button type="button" class="binding" data-bind="r" disabled>Right click</button></dt><dd>Drift, hop</dd>
-      <dt><button type="button" class="binding" data-bind="up" disabled>↑</button></dt><dd>Trick (in the air, as you leave a ramp)</dd>
-      <dt><button type="button" class="binding" data-bind="l" disabled>Shift</button></dt><dd>Use item</dd>
-      <dt><button type="button" class="binding" data-bind="axis2" disabled>W</button><button type="button" class="binding" data-bind="axis3" disabled>S</button></dt><dd>Aim item forward / back</dd>
-      <dt><button type="button" class="binding" data-bind="start" disabled>Enter</button></dt><dd>Pause</dd>
-    </dl>
-    <h3>Menus</h3>
-    <dl>
-      <dt><button type="button" class="binding" data-bind="axis2" disabled>W</button><button type="button" class="binding" data-bind="axis1" disabled>A</button><button type="button" class="binding" data-bind="axis3" disabled>S</button><button type="button" class="binding" data-bind="axis0" disabled>D</button></dt><dd>Move</dd>
-      <dt><button type="button" class="binding" data-bind="a" disabled>Left click</button></dt><dd>Confirm (A)</dd>
-      <dt><button type="button" class="binding" data-bind="b" disabled>Space</button></dt><dd>Back (B)</dd>
-      <dt><button type="button" class="binding" data-bind="up" disabled>↑</button><button type="button" class="binding" data-bind="left" disabled>←</button><button type="button" class="binding" data-bind="down" disabled>↓</button><button type="button" class="binding" data-bind="right" disabled>→</button></dt><dd>D-pad</dd>
-    </dl>
-    <h3>Game</h3>
-    <dl>
-      <dt><kbd>F10</kbd></dt><dd>Settings and key bindings</dd>
-      <dt><button type="button" class="binding" data-bind="mute" disabled>\</button></dt><dd>Mute / unmute</dd>
-    </dl>
-    <p class="note" id="keyboard-off" hidden>The keyboard is turned off for player 1: turn it on in
-      <kbd>F10</kbd> → Controller settings.</p>
-    <p class="note">A game controller works too. On a Mac keyboard, press <kbd>fn</kbd>+<kbd>F10</kbd>.</p>
-    <!-- Saves: export, import and backups of the save and settings (mkw_saves.js). -->
-    <section id="saves-panel" aria-label="Saves" hidden>
-      <h3>Saves</h3>
-      <p class="note" id="saves-storage" role="status" style="margin-top: 0"></p>
-      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px">
-        <button type="button" id="saves-export" class="link" title="Download rksys.dat">Export save</button>
-        <button type="button" id="saves-backup" class="link" title="Download the save and settings as a .zip">Export backup</button>
-        <button type="button" id="saves-import" class="link" title="Load an rksys.dat or a backup .zip">Import…</button>
-        <button type="button" id="saves-restore" class="link" title="Undo the last import" hidden>Restore previous save</button>
-      </div>
-      <input type="file" id="saves-file" accept=".dat,.zip,application/zip,application/octet-stream" hidden>
-      <p class="note" id="saves-message" role="status" style="margin-top: 8px"></p>
-    </section>
+  </aside>
+</div>
+<dialog id="problems-dialog" aria-labelledby="problems-title">
+  <h2 id="problems-title">Problems</h2>
+  <div id="problems-block">
     <h3>Problems</h3>
     <p class="note" id="save-log-help">Low FPS, stutter, a crash or a disconnect? Press Save log straight after it
       happens, then DM the file to <strong>hiemal</strong> on Discord with a few words about what you saw.</p>
@@ -300,8 +564,9 @@
       game code. It runs an extra background thread: no difference on a fast computer, but it can cost a
       little speed on one with few CPU cores, so turn it off once you have sent the log. Changing it
       reloads the page.</p>
-  </aside>
-</div>
+  </div>
+  <form method="dialog"><button class="link">Close</button></form>
+</dialog>
 <script>
   const params = new URLSearchParams(location.search);
 
@@ -368,6 +633,7 @@
   // folder on the server). Decided below, before the game loads; "?disc=local|fetch" forces one.
   let discMode = ['local', 'fetch'].includes(params.get('disc')) ? params.get('disc') : '';
   let discReady = false;
+  let discWorker = null, discInfo = null, buildGameId = '';
   const updateStartButton = () => {
     const button = document.getElementById('start');
     const needsDisc = discMode === 'local' && !discReady;
@@ -375,6 +641,7 @@
     button.hidden = runtimeFailed || roomLaunchFailed || gameStarted;
     button.textContent = !runtimeReady ? 'Loading…' : needsDisc ? 'Choose your disc image' : !lobbyReady ? 'Connecting…'
       : roomUrl ? 'Play online' : 'Start';
+    updateView();
   };
   try { roomName.value = localStorage.getItem('mkw-room-name') || ''; } catch {}
   window.mkwRoomName = roomName.value;
@@ -414,6 +681,109 @@
     statusEl.textContent = '';
     Module.canvas.focus();
   };
+  // The page before the game starts (body.pregame in the stylesheet): which screen of the menu
+  // shows. With a local disc image the disc screen comes first and stays until a disc image is
+  // accepted; a staged game folder goes straight to the four choices. A failure replaces the
+  // menu with its message, and Start closes it and hands its blocks to the controls panel.
+  const menu = document.getElementById('menu');
+  const MENU_ITEMS = ['solo', 'friends', 'controls', 'saves'];
+  let menuItem = roomParam ? 'friends' : 'solo';
+  let menuOpen = true, discScreenOpen = false, discHandleKept = false, shownView = '';
+  const discAccepted = () => !!discInfo && !discInfo.failed && !!discInfo.valid
+    && !(buildGameId && discInfo.gameId !== buildGameId);
+  const leaveMenu = (started) => {
+    if (!menuOpen) return;
+    menuOpen = false;
+    menu.hidden = true;
+    overlay.insertBefore(statusEl, document.getElementById('reload'));
+    const problems = document.getElementById('problems-dialog');
+    if (problems.open) problems.close();
+    if (!started) return;
+    for (const id of ['bindings-block', 'saves-panel', 'problems-block']) {
+      controlsPanel.append(document.getElementById(id));
+    }
+    document.body.classList.toggle('pregame', false);
+  };
+  const updateView = () => {
+    if (!menuOpen) return;
+    if (runtimeFailed || roomLaunchFailed) {
+      leaveMenu(false);
+      return;
+    }
+    if (gameStarted) return;
+    const el = (id) => document.getElementById(id);
+    const local = discMode === 'local', accepted = local && discAccepted();
+    const view = !discMode ? 'boot' : local && (!accepted || discScreenOpen) ? 'disc' : 'menu';
+    if (roomUrl) menuItem = 'friends';
+    menu.dataset.view = view;
+    menu.dataset.item = menuItem;
+    menu.classList.toggle('loaded', runtimeReady);
+    // The disc screen: its picture, and which button is the one to press.
+    const returning = !el('disc-reuse').hidden;
+    el('disc-panel').classList.toggle('returning', returning);
+    el('disc-panel').dataset.disc = accepted ? 'ok' : discWorker && !discInfo ? 'reading' : returning ? 'kept' : 'none';
+    el('disc-pick').textContent = accepted || returning ? 'Choose a different disc image…' : 'Choose disc image…';
+    el('disc-back').hidden = !(accepted && discScreenOpen);
+    el('disc-invite').hidden = !roomUrl;
+    // The header names the accepted disc image and leads back to the disc screen.
+    el('disc-chip').hidden = !(accepted && view === 'menu');
+    el('disc-chip-text').textContent = accepted ? discInfo.gameId + ' · ' + discInfo.region : '';
+    el('change-disc').hidden = !(local && view === 'menu');
+    for (const item of MENU_ITEMS) el('nav-' + item).setAttribute('aria-current', String(item === menuItem));
+    // In a room the game starts from the room's panel.
+    el('nav-solo').disabled = !!roomUrl;
+    el('nav-solo-desc').textContent = roomUrl ? 'Leave the room to play solo' : 'Race on your own';
+    el('nav-friends-desc').textContent = roomUrl ? 'You are in a room' : 'Create a room or enter an invite code';
+    el('solo-disc').hidden = !accepted;
+    el('solo-disc').textContent = accepted ? discInfo.name + ' · ' + discInfo.gameId + ' (' + discInfo.region + '), verified' : '';
+    el('room-reload-note').hidden = !!roomUrl;
+    el('room-reload-note').textContent = 'Creating or joining a room reloads this page.' + (!local ? ''
+      : discHandleKept ? ' This browser remembers your disc image; it may ask you to confirm it.'
+      : ' You will choose your disc image again afterwards.');
+    el('load-label').textContent = view === 'disc' ? 'Loading the game while you choose' : 'Loading the game';
+    el('foot-desc').textContent = view === 'boot' ? ''
+      : view === 'disc' ? 'You can also drop a disc image anywhere on this page.'
+      : menuItem === 'solo' ? 'Start the game on your own.'
+      : menuItem === 'controls' ? 'Keys can be changed once the game is running.'
+      : menuItem === 'saves' ? 'Your save stays in this browser unless you export it.'
+      : roomUrl ? 'Share the invite link, then press Play online.'
+      : 'Up to 12 players.' + (local ? ' Everyone plays from their own disc image.' : '');
+    if (view === 'menu' && shownView === 'disc') el('nav-' + menuItem).focus();
+    shownView = view;
+  };
+  for (const item of MENU_ITEMS) {
+    document.getElementById('nav-' + item).addEventListener('click', () => { menuItem = item; updateView(); });
+  }
+  document.getElementById('menu-nav').addEventListener('keydown', (event) => {
+    const step = ['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 0;
+    if (!step) return;
+    const items = MENU_ITEMS.filter((item) => !document.getElementById('nav-' + item).disabled);
+    event.preventDefault();
+    menuItem = items[(Math.max(items.indexOf(menuItem), 0) + step + items.length) % items.length];
+    updateView();
+    document.getElementById('nav-' + menuItem).focus();
+  });
+  document.getElementById('change-disc').addEventListener('click', () => { discScreenOpen = true; updateView(); });
+  document.getElementById('disc-back').addEventListener('click', () => { discScreenOpen = false; updateView(); });
+  document.getElementById('open-problems').addEventListener('click', () => {
+    const problems = document.getElementById('problems-dialog');
+    if (typeof problems.showModal === 'function') problems.showModal(); else problems.setAttribute('open', '');
+  });
+  // The game's loading messages land in #status. In the menu they drive the bar in the bottom
+  // strip; any other message there (the game is open in another tab) shows as text instead.
+  const syncLoadStatus = () => {
+    const text = statusEl.textContent;
+    const progress = /\((\d+)\/(\d+)\)\s*$/.exec(text);
+    const share = progress && Number(progress[2]) > 0 ? Math.min(1, Number(progress[1]) / Number(progress[2])) : -1;
+    document.getElementById('load-bar').classList.toggle('known', share >= 0);
+    document.getElementById('load-fill').style.width = share >= 0 ? (share * 100).toFixed(1) + '%' : '';
+    document.getElementById('load-pct').textContent = share >= 0 ? Math.round(share * 100) + '%' : '';
+    document.getElementById('foot-load').classList.toggle('notice',
+      !!text && !progress && !/^(Downloading|Preparing|Running|All downloads)/.test(text));
+  };
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(syncLoadStatus).observe(statusEl, { childList: true, characterData: true, subtree: true });
+  }
   const invokePendingRoomLaunchCancel = () => {
     if (!cancelRoomLaunchRequested || !runtimeReady || typeof Module?._mkw_web_cancel_room_launch !== 'function') return;
     Module._mkw_web_cancel_room_launch();
@@ -490,6 +860,7 @@
     const card = document.getElementById('lobby-card');
     card.hidden = false;
     card.append(roomPanel);
+    document.getElementById('start-slot-friends').append(startButton);
     roomPanel.querySelector('h2').textContent = 'Room lobby';
     document.getElementById('room-setup').hidden = true;
     document.getElementById('room-invite').hidden = false;
@@ -648,6 +1019,7 @@
   };
   const showCompat = (extra) => {
     runtimeFailed = true;  // keeps the Start button hidden even if the runtime finishes loading
+    updateView();
     startButton.hidden = true;
     overlay.hidden = false;
     statusEl.textContent = 'This browser is missing: ' + missing.join(', ') + '.';
@@ -824,7 +1196,6 @@
   // The game's file backend reaches this page's disc worker on a channel no other tab shares.
   const discChannel = 'mkw-disc-' + (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
     : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''));
-  let discWorker = null, discInfo = null, buildGameId = '';
   const setDiscStatus = (text, kind = '') => { discStatus.textContent = text; discStatus.className = kind; };
   // The staged manifest the probe downloaded, handed to the game's file backend (mkw_fetchfs.js)
   // as a blob: URL in MKW_WEB_MANIFEST_URL, so the game does not download it a second time.
@@ -914,6 +1285,8 @@
         diag.push('Disc image: ' + data.gameId + ' ' + (data.region || 'unknown region') + ', main.dol '
           + (data.dolOk ? 'ok' : 'differs') + ', StaticR.rel ' + (data.relOk ? 'ok' : 'differs') + ', opened in ' + data.ms + ' ms');
         if (data.valid && handle) saveDiscHandle(handle);
+        discHandleKept = !!(data.valid && handle);
+        if (data.valid) discScreenOpen = false;
         // The saves panel (mkw_saves.js) finds the NAND title folder from this before the game loads.
         if (data.valid) window.mkwGameId = data.gameId;
       } else if (data.type === 'failed') {
@@ -924,6 +1297,7 @@
       checkDisc();
     };
     worker.postMessage({ type: 'open', file, channel: discChannel });
+    updateView();
   };
   discPick.addEventListener('click', async () => {
     if (typeof window.showOpenFilePicker !== 'function') {
@@ -970,6 +1344,7 @@
         forgetDiscHandle();
         discReuse.hidden = true;
         setDiscStatus(handle.name + ' is no longer where it was. Choose your disc image again.', 'error');
+        updateView();
       }
     };
     const permission = (mode) => Promise.resolve(handle[mode]?.({ mode: 'read' })).catch(() => 'denied');
@@ -983,6 +1358,7 @@
     discReuse.onclick = async () => {
       if (await permission('requestPermission') === 'granted') useHandle();
     };
+    updateView();
   };
   document.getElementById('disc-clear').addEventListener('click', async () => {
     if (gameStarted && !confirm('Clear the local game data? The game stops and the page reloads. Saves and settings are kept.')) return;
@@ -996,6 +1372,8 @@
       return;
     }
     discReuse.hidden = true;
+    discHandleKept = false;
+    discScreenOpen = false;
     checkDisc();
     setDiscStatus('Cleared: this browser no longer keeps access to your disc image. Saves and settings are kept.');
   });
@@ -1074,6 +1452,7 @@
     onAbort: (what) => {
       runtimeFailed = true;
       runtimeReady = false;
+      updateView();
       cancelRoomLaunchRequested = false;
       cancelRoomLaunchButton.hidden = true;
       cancelRoomLaunchButton.disabled = true;
@@ -1240,11 +1619,13 @@
       discReuse.hidden = true;
       controlsPanel.insertBefore(discPanel, controlsPanel.querySelector(':scope > .head'));
     }
+    leaveMenu(true);
     saveRoomName();
     for (const id of ['create-room', 'join-room', 'room-code']) document.getElementById(id).disabled = true;
     if (directRoomJoin) {
       roomLaunchState = 'loading';
       startButton.hidden = true;
+      overlay.prepend(document.getElementById('lobby-card'));
       document.getElementById('room-game-status').textContent = 'Starting a direct connection to your room…';
       statusEl.textContent = 'Starting a direct connection to your room…';
       cancelRoomLaunchButton.hidden = false;

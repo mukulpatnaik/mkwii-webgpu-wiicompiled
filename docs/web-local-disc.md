@@ -17,6 +17,13 @@ returned instead of the manifest does not count as a staged folder. The page han
 downloaded for the probe to the game's file backend (`MKW_WEB_MANIFEST_URL`, a `blob:` URL), so
 it is not downloaded twice.
 
+Before the game starts, the page shows a menu over the whole window (`#menu` in `shell.html`).
+With a local disc image it opens on a disc screen and moves to the four choices (Solo, Play with
+friends, Controls, Saves) once a disc image is verified; "Change disc" in the header brings the
+disc screen back. With a staged game folder there is no disc screen. The game loads in the
+background on either screen, and Start hands the menu's blocks to the controls panel beside the
+game.
+
 ## How it works
 
 1. `shell.html` starts `mkw_disc_worker.js` with the picked `File`. The worker runs nod

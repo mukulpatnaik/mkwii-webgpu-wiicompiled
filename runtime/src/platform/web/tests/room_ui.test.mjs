@@ -19,7 +19,14 @@ class Element {
     this.listeners = new Map();
     this.attributes = new Map();
     this.parentNode = null;
-    this.classList = { add() {}, toggle() {} };
+    this.style = {};
+    this.open = false;
+    const classes = new Set();
+    this.classList = {
+      add: (name) => { classes.add(name); },
+      contains: (name) => classes.has(name),
+      toggle: (name, force = !classes.has(name)) => { if (force) classes.add(name); else classes.delete(name); return force; },
+    };
   }
 
   addEventListener(type, callback) {
@@ -60,6 +67,8 @@ class Element {
 
   setAttribute(name, value) { this.attributes.set(name, value); }
   focus() { this.focused = true; }
+  showModal() { this.open = true; }
+  close() { this.open = false; }
   select() {}
 }
 
@@ -108,6 +117,12 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
     'volume-value', 'toggle-mute', 'keyboard-off', 'binding-help', 'room-code',
     'hint', 'diag', 'diag-text', 'diag-copy', 'game-runtime', 'save-status', 'save-log', 'diag-save-log', 'detailed-log',
     'disc-panel', 'disc-status', 'disc-pick', 'disc-reuse', 'disc-file', 'disc-clear',
+    // The menu shown before the game starts.
+    'menu', 'menu-nav', 'nav-solo', 'nav-friends', 'nav-controls', 'nav-saves', 'nav-solo-desc',
+    'nav-friends-desc', 'disc-chip', 'disc-chip-text', 'change-disc', 'open-problems',
+    'problems-dialog', 'disc-invite', 'disc-back', 'solo-disc', 'start-slot-solo', 'start-slot-friends',
+    'room-reload-note', 'foot-desc', 'foot-load', 'load-label', 'load-bar', 'load-fill', 'load-pct',
+    'bindings-block', 'saves-panel', 'problems-block',
   ];
   const elements = new Map(ids.map((id) => [id, new Element(id)]));
   elements.get('start').disabled = true;
@@ -122,10 +137,15 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
   roomPanel.heading = new Element('room-heading');
   roomPanel.children = [roomPanel.heading];
   roomPanel.heading.parentNode = roomPanel;
-  const controlsPanel = elements.get('controls');
-  controlsPanel.append(roomPanel);
-  elements.get('room-name').value = 'Racer';
   const body = new Element('body');
+  // As in the markup: the room panel starts in the menu's Play with friends panel, Start in Solo.
+  elements.get('lobby-card').append(roomPanel);
+  elements.get('start-slot-solo').append(elements.get('start'));
+  elements.get('overlay').append(elements.get('menu'), elements.get('hint'));
+  elements.get('foot-load').append(elements.get('status'));
+  elements.get('disc-back').hidden = true;
+  body.classList.add('pregame');
+  elements.get('room-name').value = 'Racer';
   const roomsHostMeta = { content: 'rooms.example.test' };
   const document = {
     body,
@@ -918,6 +938,178 @@ test('Clear local game data stops the reader and asks for the disc again', async
   assert.equal(worker.terminated, true);
   assert.equal(elements.get('start').disabled, true);
   assert.match(elements.get('disc-status').textContent, /Cleared/);
+});
+
+// The menu before the game starts (#menu): with a local disc image the disc screen comes first,
+// then the four choices; a staged game folder goes straight to the choices.
+test('a staged game folder opens the menu on Solo, and the choices switch the panel', async () => {
+  const { elements } = setupRoomPage('');
+  await settle();
+  const menu = elements.get('menu');
+  assert.equal(menu.dataset.view, 'menu');
+  assert.equal(menu.dataset.item, 'solo');
+  assert.equal(elements.get('disc-chip').hidden, true);
+  assert.equal(elements.get('change-disc').hidden, true);
+  assert.equal(elements.get('nav-solo').disabled, false);
+  elements.get('nav-friends').dispatch('click');
+  assert.equal(menu.dataset.item, 'friends');
+  assert.equal(elements.get('nav-friends').attributes.get('aria-current'), 'true');
+  assert.equal(elements.get('nav-solo').attributes.get('aria-current'), 'false');
+  assert.equal(elements.get('foot-desc').textContent, 'Up to 12 players.');
+  assert.equal(elements.get('room-reload-note').textContent, 'Creating or joining a room reloads this page.');
+  let prevented = false;
+  elements.get('menu-nav').dispatch('keydown', { key: 'ArrowDown', preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(menu.dataset.item, 'controls');
+  assert.equal(elements.get('nav-controls').focused, true);
+  elements.get('open-problems').dispatch('click');
+  assert.equal(elements.get('problems-dialog').open, true);
+});
+
+test('with a local disc image the disc screen comes first and the menu follows a verified disc', async () => {
+  const { context, elements, pick } = await localDiscPage();
+  const menu = elements.get('menu');
+  const panel = elements.get('disc-panel');
+  assert.equal(menu.dataset.view, 'disc');
+  assert.equal(panel.dataset.disc, 'none');
+  assert.equal(elements.get('disc-pick').textContent, 'Choose disc image…');
+  assert.equal(elements.get('disc-back').hidden, true);
+  const worker = pick();
+  assert.equal(panel.dataset.disc, 'reading');
+  assert.equal(menu.dataset.view, 'disc');
+  worker.onmessage({ data: opened() });
+  assert.equal(menu.dataset.view, 'menu', 'the menu opens before the game has finished loading');
+  assert.equal(menu.dataset.item, 'solo');
+  assert.equal(elements.get('nav-solo').focused, true);
+  assert.equal(elements.get('disc-chip').hidden, false);
+  assert.equal(elements.get('disc-chip-text').textContent, 'RMCE01 · NTSC-U');
+  assert.equal(elements.get('solo-disc').textContent, 'Mario Kart Wii.wbfs · RMCE01 (NTSC-U), verified');
+  assert.equal(menu.classList.contains('loaded'), false);
+  context.Module.onRuntimeInitialized();
+  assert.equal(menu.dataset.view, 'menu');
+  assert.equal(menu.classList.contains('loaded'), true);
+
+  elements.get('change-disc').dispatch('click');
+  assert.equal(menu.dataset.view, 'disc');
+  assert.equal(panel.dataset.disc, 'ok');
+  assert.equal(elements.get('disc-back').hidden, false);
+  assert.equal(elements.get('disc-pick').textContent, 'Choose a different disc image…');
+  elements.get('disc-back').dispatch('click');
+  assert.equal(menu.dataset.view, 'menu');
+
+  elements.get('change-disc').dispatch('click');
+  pick('second.wbfs').onmessage({ data: opened() });
+  assert.equal(menu.dataset.view, 'menu', 'a new verified disc returns to the menu');
+  assert.match(elements.get('solo-disc').textContent, /^second\.wbfs/);
+});
+
+test('a disc the game cannot play keeps or brings back the disc screen', async () => {
+  const early = await localDiscPage();
+  early.pick().onmessage({ data: opened({ gameId: 'RMCP01', region: 'PAL' }) });
+  assert.equal(early.elements.get('menu').dataset.view, 'menu', 'the release is only known once the game has loaded');
+  early.context.Module.onRuntimeInitialized();
+  assert.equal(early.elements.get('menu').dataset.view, 'disc');
+  assert.match(early.elements.get('disc-status').textContent, /this site plays the NTSC-U release/);
+  assert.equal(early.elements.get('disc-chip').hidden, true);
+
+  const modified = await localDiscPage();
+  modified.pick().onmessage({ data: opened({ valid: false, relOk: false, reason: 'Not a clean retail dump.' }) });
+  assert.equal(modified.elements.get('menu').dataset.view, 'disc');
+  assert.equal(modified.elements.get('disc-panel').dataset.disc, 'none');
+});
+
+test('Clear local game data returns from the menu to the disc screen', async () => {
+  const { context, elements, pick } = await localDiscPage();
+  context.Module.onRuntimeInitialized();
+  pick().onmessage({ data: opened() });
+  elements.get('change-disc').dispatch('click');
+  elements.get('disc-clear').dispatch('click');
+  await settle();
+  assert.equal(elements.get('menu').dataset.view, 'disc');
+  assert.equal(elements.get('disc-back').hidden, true);
+  assert.equal(elements.get('disc-panel').dataset.disc, 'none');
+});
+
+test('a room link opens the menu on Play with friends, with Start beside the lobby', async () => {
+  const { elements } = setupRoomPage();
+  await settle();
+  const menu = elements.get('menu');
+  assert.equal(menu.dataset.view, 'menu');
+  assert.equal(menu.dataset.item, 'friends');
+  assert.equal(elements.get('nav-solo').disabled, true);
+  assert.equal(elements.get('nav-solo-desc').textContent, 'Leave the room to play solo');
+  assert.equal(elements.get('start').parentNode, elements.get('start-slot-friends'));
+  assert.equal(elements.get('room-reload-note').hidden, true);
+  elements.get('menu-nav').dispatch('keydown', { key: 'ArrowUp', preventDefault() {} });
+  assert.equal(menu.dataset.item, 'friends', 'the room keeps the menu on Play with friends');
+});
+
+test('a room link without a disc image asks for the disc first, then shows the lobby', async () => {
+  const { elements, pick } = await localDiscPage('?room=abcdef');
+  const menu = elements.get('menu');
+  assert.equal(menu.dataset.view, 'disc');
+  assert.equal(elements.get('disc-invite').hidden, false);
+  pick().onmessage({ data: opened() });
+  assert.equal(menu.dataset.view, 'menu');
+  assert.equal(menu.dataset.item, 'friends');
+  assert.equal(elements.get('nav-friends').focused, true);
+});
+
+test('Start closes the menu and hands its blocks to the controls panel', async () => {
+  const { context, elements, body } = setupRoomPage('');
+  await settle();
+  const controls = elements.get('controls');
+  const menu = elements.get('menu');
+  context.Module.callMain = () => {};
+  context.Module.onRuntimeInitialized();
+  elements.get('open-problems').dispatch('click');
+  assert.equal(body.classList.contains('pregame'), true);
+  elements.get('start').dispatch('click');
+  assert.equal(menu.hidden, true);
+  assert.equal(body.classList.contains('pregame'), false);
+  assert.equal(elements.get('problems-dialog').open, false);
+  for (const id of ['bindings-block', 'saves-panel', 'problems-block']) {
+    assert.equal(elements.get(id).parentNode, controls, `${id} moves to the controls panel`);
+  }
+  assert.equal(elements.get('status').parentNode, elements.get('overlay'));
+  menu.dataset.view = 'kept';
+  elements.get('nav-friends').dispatch('click');
+  assert.equal(menu.dataset.view, 'kept', 'the menu is not redrawn once the game runs');
+});
+
+test('a failure before Start replaces the menu with its message', async () => {
+  const { context, elements, body } = setupRoomPage('');
+  await settle();
+  context.Module.onAbort('test failure');
+  assert.equal(elements.get('menu').hidden, true);
+  assert.equal(elements.get('status').parentNode, elements.get('overlay'));
+  assert.equal(elements.get('reload').hidden, false);
+  assert.equal(body.classList.contains('pregame'), true, 'the failure shows on the full page');
+  assert.notEqual(elements.get('bindings-block').parentNode, elements.get('controls'));
+});
+
+test('loading messages drive the bar, and other status text shows as a notice', async () => {
+  const { context, elements } = setupRoomPage('');
+  await settle();
+  const sync = () => vm.runInContext('syncLoadStatus()', context);
+  const bar = elements.get('load-bar'), fill = elements.get('load-fill'), strip = elements.get('foot-load');
+  context.Module.setStatus('Downloading data... (50/200)');
+  sync();
+  assert.equal(bar.classList.contains('known'), true);
+  assert.equal(fill.style.width, '25.0%');
+  assert.equal(elements.get('load-pct').textContent, '25%');
+  assert.equal(strip.classList.contains('notice'), false);
+  context.Module.setStatus('Downloading data...');
+  sync();
+  assert.equal(bar.classList.contains('known'), false);
+  assert.equal(fill.style.width, '');
+  assert.equal(strip.classList.contains('notice'), false);
+  elements.get('status').textContent = 'Mario Kart Wii is already open in another tab of this browser.';
+  sync();
+  assert.equal(strip.classList.contains('notice'), true);
+  context.Module.setStatus('');
+  sync();
+  assert.equal(strip.classList.contains('notice'), false);
 });
 
 test('Create room uses the local relay on 127.0.0.1 and the page\'s mkw-rooms-host tag elsewhere', async () => {
