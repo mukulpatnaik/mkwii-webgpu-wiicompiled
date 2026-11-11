@@ -79,22 +79,64 @@
                      "Arial Rounded MT Bold", system-ui, -apple-system, "Segoe UI", sans-serif;
                overflow: hidden; }
   #layout { display: flex; height: 100%; }
-  /* The game renders at its own size; the element scales to fit the space left, letterboxed,
-     inside a rounded tile with a margin like a channel on the Wii Menu. */
-  #stage { position: relative; flex: 1; min-width: 0; background: var(--bg); }
-  #canvas { position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px);
-            object-fit: contain; display: block; outline: none; border-radius: 16px;
-            box-shadow: var(--stage-ring); }
+  /* The game renders at its own size; the element scales to fill the window, letterboxed. Nothing
+     else is on screen while playing: the menu is a faint button in the corner (#dock, below). */
+  #stage { position: relative; flex: 1; min-width: 0; background: #0b0c10; }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: contain; display: block; outline: none; }
   /* Plain dark letterbox around the game picture. */
   #canvas { background-color: #0b0c10; }
   /* Optional local picture: put game/background.jpg next to the page (not part of this
      repository) and it replaces the plain backdrop. */
   .custom-background #canvas {
     background: linear-gradient(#0008, #0008), url("game/background.jpg") center / cover no-repeat #0b0c10; }
-  #controls { width: 284px; flex: none; overflow-y: auto; background: var(--panel); color: var(--text);
-              border: 1px solid var(--line); border-radius: 16px; margin: 12px 12px 12px 0;
-              box-shadow: var(--tile-shadow); padding: 16px 16px 24px; box-sizing: border-box; }
+  /* In the game: a faint round button in the top right corner, hidden while the mouse is still
+     (#stage.awake for three seconds after it moves). Clicked, or on Tab, it stretches leftward
+     into a slim pill: Controls, Saves, the room, the volume, Help, the theme and full screen. The
+     pill stays open until it is closed. */
+  #dock { position: absolute; top: 14px; right: 14px; z-index: 3; display: flex; align-items: center; box-sizing: border-box;
+          max-width: calc(100% - 28px); padding: 4px; border-radius: 999px; background: rgba(20, 24, 30, .5);
+          border: 1px solid rgba(255, 255, 255, .4); backdrop-filter: blur(6px); color: #fff; opacity: 0;
+          transition: opacity .35s ease, background .25s ease; }
+  body.pregame #dock, body.pregame #controls { display: none; }
+  #stage.awake #dock { opacity: .5; }
+  #dock:hover, #dock:has(:focus-visible), #dock.open, #stage.awake #dock.open { opacity: 1; }
+  #dock.open { background: rgba(20, 24, 30, .68); }
+  #dock-items { display: flex; align-items: center; gap: 4px; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+                visibility: hidden; transform: translateX(16px);
+                transition: max-width .42s cubic-bezier(.2, .9, .25, 1), opacity .2s ease, transform .42s cubic-bezier(.2, .9, .25, 1),
+                            visibility 0s .42s; }
+  #dock.open #dock-items { max-width: min(780px, calc(100vw - 84px)); opacity: 1; visibility: visible; transform: none;
+                           padding: 0 4px 0 2px; overflow-x: auto; scrollbar-width: none; transition-delay: 0s, .12s, 0s, 0s; }
+  #dock button { display: flex; align-items: center; gap: 6px; flex: none; font: inherit; font-size: 13px; font-weight: 800;
+                 color: #fff; background: none; border: 0; border-radius: 999px; padding: 7px 11px; cursor: pointer; }
+  #dock button:hover:not(:disabled), #dock button[aria-expanded="true"] { background: rgba(255, 255, 255, .18); }
+  #dock button:disabled { opacity: .5; cursor: default; }
+  #dock button:focus-visible { outline: 2px solid #8fd4ff; outline-offset: 1px; }
+  #dock button[hidden] { display: none; }
+  #dock svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
+              stroke-linejoin: round; }
+  #dock .sep { flex: none; width: 1px; height: 20px; margin: 0 3px; background: rgba(255, 255, 255, .3); }
+  #dock-toggle { position: relative; width: 36px; height: 36px; justify-content: center; padding: 0 !important; }
+  #dock-toggle svg { position: absolute; transition: transform .35s ease, opacity .2s ease; }
+  #dock-toggle .close { opacity: 0; transform: rotate(-90deg) scale(.6); }
+  #dock.open #dock-toggle .bars { opacity: 0; transform: rotate(90deg) scale(.6); }
+  #dock.open #dock-toggle .close { opacity: 1; transform: none; }
+  /* What a pill item opens: a card under the pill with the block for that item (data-card). The
+     room, disc, key, save and help blocks move in here at Start. The game keeps running behind. */
+  #controls { position: absolute; top: 66px; right: 14px; z-index: 3; box-sizing: border-box; width: min(430px, calc(100% - 28px));
+              max-height: calc(100% - 84px); overflow-y: auto; background: var(--panel); color: var(--text);
+              border: 2px solid var(--line); border-radius: 20px; box-shadow: 0 10px 28px rgba(0, 0, 0, .4);
+              padding: 16px 18px 18px; animation: card-in .2s ease; }
+  @keyframes card-in { from { opacity: 0; transform: translateY(-8px); } }
   #controls[hidden] { display: none; }
+  #controls > * { display: none; }
+  #controls[data-card="controls"] > #bindings-block, #controls[data-card="saves"] > #disc-panel:not([hidden]),
+  #controls[data-card="saves"] > #saves-panel:not([hidden]), #controls[data-card="help"] > #problems-block,
+  #controls[data-card="room"] > #room-panel { display: block; }
+  #controls > :first-child > h3:first-child, #controls #bindings-block > .note:first-of-type { margin-top: 0; }
+  #controls #room-panel { border: 0; padding: 0; margin: 0; }
+  #controls #saves-panel h3 { margin-top: 0; }
   #controls h2 { font-size: 15px; font-weight: 800; margin: 0; }
   #controls h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
                  margin: 18px 0 8px; font-weight: 800; }
@@ -111,11 +153,9 @@
   .binding:disabled { cursor: default; opacity: .65; }
   .binding:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .binding.unbound { color: var(--muted); border-style: dashed; }
-  #volume-control { margin: 14px 0; }
-  .volume-row { display: flex; align-items: center; gap: 8px; }
-  .volume-row label { flex: 1; font-weight: 700; }
-  #volume { width: 100%; margin: 10px 0 0; accent-color: var(--accent); }
-  #volume-value { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #volume-control { display: flex; align-items: center; gap: 4px; flex: none; }
+  #volume { width: 92px; margin: 0; accent-color: #6ec9f3; }
+  #volume-value { min-width: 4ch; color: rgba(255, 255, 255, .85); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .note { color: var(--muted); font-size: 12px; margin: 18px 0 0; }
   #save-log-help { margin: 0 0 8px; }
   .log-toggle { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
@@ -150,10 +190,8 @@
   button.link:hover { filter: brightness(1.04); }
   #create-room, #disc-pick, #reload { background: var(--primary-bg); color: var(--primary-text);
                                       border-color: var(--primary-line); }
-  #show-controls { position: absolute; top: 20px; right: 20px; z-index: 1; }
-  #show-controls[hidden] { display: none; }
-  #overlay { position: absolute; inset: 12px; display: flex; flex-direction: column; gap: 14px;
-             align-items: center; justify-content: safe center; overflow-y: auto; border-radius: 16px;
+  #overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px;
+             align-items: center; justify-content: safe center; overflow-y: auto;
              box-sizing: border-box; padding: 20px 0; background: #000c; color: #e6edf5; z-index: 2; }
   #overlay > * { flex-shrink: 0; }
   #overlay[hidden] { display: none; }
@@ -322,7 +360,7 @@
   #menu #bindings-block { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; align-items: start; }
   #menu #bindings-block > :not(.group) { grid-column: 1 / -1; margin: 0; }
   #menu #bindings-block > .tall { grid-row: span 2; }
-  #menu #volume-control, #menu #saves-panel h3 { display: none; }
+  #menu #saves-panel h3 { display: none; }
   #saves-panel:not([hidden]) + #saves-wait { display: none; }
   /* The strip along the bottom. On the disc screen: the drop hint and how far the game has
      loaded. On the tiles: the curved bar with a bay for the loading line and the round buttons.
@@ -382,7 +420,8 @@
                                     text-align: right; white-space: normal; }
   @media (prefers-reduced-motion: reduce) {
     #load-fill, #disc-panel[data-disc="reading"] #disc-art .disc { animation: none; }
-    #menu-nav button, .round { transition: none; }
+    #menu-nav button, .round, #dock, #dock-items, #dock-toggle svg { transition: none; }
+    #controls { animation: none; }
   }
   #problems-dialog { width: min(520px, calc(100% - 48px)); box-sizing: border-box; border: 2px solid var(--line);
     border-radius: 24px; background: var(--panel); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); padding: 24px 28px; }
@@ -391,10 +430,10 @@
   #problems-dialog h3 { display: none; }
   #problems-dialog .note { font-size: 14px; }
   #problems-dialog form { margin: 18px 0 0; text-align: right; }
-  /* Narrow windows: controls go below the game. */
+  /* Narrow windows: the pill keeps its icons and drops their words. */
   @media (max-width: 760px) {
-    #layout { flex-direction: column; }
-    #controls { width: auto; max-height: 40%; margin: 0 12px 12px; }
+    #dock .word, #volume-value { display: none; }
+    #volume { width: 64px; }
     /* The menu: the two tiles stack, the round buttons shrink, and the page scrolls. */
     #menu-body { align-items: flex-start; }
     #menu-nav { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 10px; }
@@ -416,7 +455,30 @@
 <div id="layout">
   <div id="stage">
     <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
-    <button id="show-controls" class="link" hidden>Show controls</button>
+    <!-- In the game: the corner button and the pill it opens into (the stylesheet, #dock). -->
+    <div id="dock">
+      <div id="dock-items">
+        <button type="button" id="dock-controls" data-card="controls" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="2" width="7" height="20" rx="2.2"/><path d="M12 6.2v2.6M10.7 7.5h2.6"/><circle cx="12" cy="12.2" r="1.3"/><path d="M12 16h.01M12 19h.01"/></svg><span class="word">Controls</span></button>
+        <button type="button" id="dock-saves" data-card="saves" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14"/></svg><span class="word">Saves</span></button>
+        <button type="button" id="dock-room" data-card="room" aria-expanded="false" title="Your room" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19"/><circle cx="10" cy="8" r="3.5"/><path d="M20 19v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.7a3.5 3.5 0 0 1 0 6.6"/></svg><span id="dock-room-count">Room</span></button>
+        <span class="sep"></span>
+        <div id="volume-control">
+          <button type="button" id="toggle-mute" disabled>Mute</button>
+          <input id="volume" type="range" min="0" max="100" step="1" value="100" aria-label="Master volume" disabled>
+          <output id="volume-value" for="volume">100%</output>
+        </div>
+        <span class="sep"></span>
+        <button type="button" id="dock-help" data-card="help" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1.9-1.1 1.8M12 17h.01"/></svg><span class="word">Help</span></button>
+        <button type="button" id="theme-toggle" aria-pressed="false" title="Switch between the light and dark look">Dark</button>
+        <button type="button" id="fullscreen-toggle" title="Full screen" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <span class="sep"></span>
+      </div>
+      <button type="button" id="dock-toggle" aria-expanded="false" aria-controls="dock-items" title="Menu (Tab)" aria-label="Menu">
+        <svg class="bars" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+        <svg class="close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+      </button>
+    </div>
+    <aside id="controls" aria-label="Game menu" data-card="" hidden></aside>
     <div id="overlay">
       <!-- The menu before the game starts (body.pregame). Its room, key, save and problem blocks
            move into the controls panel when the game starts. -->
@@ -492,7 +554,7 @@
                 <button type="button" id="disc-clear" class="link">Clear local game data</button>
               </div>
             </section>
-            <p id="disc-tagline">Solo or online with friends. Keyboard and mouse, or a game controller.</p>
+            <p id="disc-tagline">Solo or online with friends. Keyboard or a game controller.</p>
           </div>
           <div id="view-menu">
             <nav id="menu-nav" aria-label="Menu">
@@ -546,36 +608,28 @@
               <section id="panel-controls" aria-label="Controls">
                 <h2>Controls</h2>
                 <div id="bindings-block">
-                  <div id="volume-control">
-                    <div class="volume-row">
-                      <label for="volume">Volume</label>
-                      <output id="volume-value" for="volume">100%</output>
-                      <button id="toggle-mute" class="link" disabled>Mute</button>
-                    </div>
-                    <input id="volume" type="range" min="0" max="100" step="1" value="100" aria-label="Master volume" disabled>
-                  </div>
                   <p id="save-status" class="note" role="status" hidden></p>
                   <p class="note" id="binding-help" role="status">Start the game, then click a key to change it.</p>
                   <div class="group tall">
                     <h3>Driving</h3>
                     <dl>
-                      <dt><button type="button" class="binding" data-bind="axis1" disabled>A</button><button type="button" class="binding" data-bind="axis0" disabled>D</button></dt><dd>Steer</dd>
-                      <dt><button type="button" class="binding" data-bind="a" disabled>Left click</button></dt><dd>Accelerate</dd>
-                      <dt><button type="button" class="binding" data-bind="b" disabled>Space</button></dt><dd>Brake / reverse</dd>
-                      <dt><button type="button" class="binding" data-bind="r" disabled>Right click</button></dt><dd>Drift, hop</dd>
-                      <dt><button type="button" class="binding" data-bind="up" disabled>↑</button></dt><dd>Trick (in the air, as you leave a ramp)</dd>
-                      <dt><button type="button" class="binding" data-bind="l" disabled>Shift</button></dt><dd>Use item</dd>
-                      <dt><button type="button" class="binding" data-bind="axis2" disabled>W</button><button type="button" class="binding" data-bind="axis3" disabled>S</button></dt><dd>Aim item forward / back</dd>
+                      <dt><button type="button" class="binding" data-bind="axis1" disabled>←</button><button type="button" class="binding" data-bind="axis0" disabled>→</button></dt><dd>Steer</dd>
+                      <dt><button type="button" class="binding" data-bind="a" disabled>X</button></dt><dd>Accelerate</dd>
+                      <dt><button type="button" class="binding" data-bind="b" disabled>Z</button></dt><dd>Brake / reverse</dd>
+                      <dt><button type="button" class="binding" data-bind="r" disabled>Shift</button></dt><dd>Drift, hop</dd>
+                      <dt><button type="button" class="binding" data-bind="up" disabled>W</button></dt><dd>Trick (in the air, as you leave a ramp)</dd>
+                      <dt><button type="button" class="binding" data-bind="l" disabled>Space</button></dt><dd>Use item</dd>
+                      <dt><button type="button" class="binding" data-bind="axis2" disabled>↑</button><button type="button" class="binding" data-bind="axis3" disabled>↓</button></dt><dd>Aim item forward / back</dd>
                       <dt><button type="button" class="binding" data-bind="start" disabled>Enter</button></dt><dd>Pause</dd>
                     </dl>
                   </div>
                   <div class="group">
                     <h3>Menus</h3>
                     <dl>
-                      <dt><button type="button" class="binding" data-bind="axis2" disabled>W</button><button type="button" class="binding" data-bind="axis1" disabled>A</button><button type="button" class="binding" data-bind="axis3" disabled>S</button><button type="button" class="binding" data-bind="axis0" disabled>D</button></dt><dd>Move</dd>
-                      <dt><button type="button" class="binding" data-bind="a" disabled>Left click</button></dt><dd>Confirm (A)</dd>
-                      <dt><button type="button" class="binding" data-bind="b" disabled>Space</button></dt><dd>Back (B)</dd>
-                      <dt><button type="button" class="binding" data-bind="up" disabled>↑</button><button type="button" class="binding" data-bind="left" disabled>←</button><button type="button" class="binding" data-bind="down" disabled>↓</button><button type="button" class="binding" data-bind="right" disabled>→</button></dt><dd>D-pad</dd>
+                      <dt><button type="button" class="binding" data-bind="axis2" disabled>↑</button><button type="button" class="binding" data-bind="axis1" disabled>←</button><button type="button" class="binding" data-bind="axis3" disabled>↓</button><button type="button" class="binding" data-bind="axis0" disabled>→</button></dt><dd>Move</dd>
+                      <dt><button type="button" class="binding" data-bind="a" disabled>X</button></dt><dd>Confirm (A)</dd>
+                      <dt><button type="button" class="binding" data-bind="b" disabled>Z</button></dt><dd>Back (B)</dd>
+                      <dt><button type="button" class="binding" data-bind="up" disabled>W</button><button type="button" class="binding" data-bind="left" disabled>A</button><button type="button" class="binding" data-bind="down" disabled>S</button><button type="button" class="binding" data-bind="right" disabled>D</button></dt><dd>D-pad</dd>
                     </dl>
                   </div>
                   <div class="group">
@@ -643,15 +697,6 @@
       </details>
     </div>
   </div>
-  <aside id="controls" aria-label="Controls">
-    <div class="head">
-      <h2>Controls</h2>
-      <div class="actions">
-        <button id="theme-toggle" class="link" aria-pressed="false">Dark</button>
-        <button id="hide-controls" class="link">Hide</button>
-      </div>
-    </div>
-  </aside>
 </div>
 <dialog id="problems-dialog" aria-labelledby="problems-title">
   <h2 id="problems-title">Help</h2>
@@ -756,12 +801,17 @@
   };
   roomName.addEventListener('change', saveRoomName);
   roomName.addEventListener('input', saveRoomName);
+  // The room's head count, in its panel and on the pill's room item.
+  const setRoomCount = (text) => {
+    document.getElementById('room-count').textContent = text;
+    document.getElementById('dock-room-count').textContent = text;
+  };
   window.mkwSetRoomConnection = (state) => {
     document.getElementById('room-connection').textContent = state === 'connecting' ? 'Connecting…'
       : state === 'connected' ? 'Connected' : 'Disconnected. Reload to rejoin.';
     if (state !== 'connected') {
       document.getElementById('room-roster').replaceChildren();
-      document.getElementById('room-count').textContent = '0 / 12';
+      setRoomCount('0 / 12');
     }
   };
   window.mkwSetGameConnection = (state) => {
@@ -968,7 +1018,7 @@
     });
     document.getElementById('room-roster').replaceChildren(...rows);
     if (window.mkwBenchmarkRoster) window.mkwBenchmarkRoster(roster.players);
-    document.getElementById('room-count').textContent = rows.length + ' / 12';
+    setRoomCount(rows.length + ' / 12');
     window.mkwSetRoomConnection('connected');
   };
   const changeRoom = (code) => {
@@ -986,7 +1036,7 @@
     document.getElementById('room-setup').hidden = true;
     document.getElementById('room-invite').hidden = false;
     const invite = new URL(location.href);
-    for (const name of ['log', 'netlog', 'muted', 'resetsave', 'manual']) invite.searchParams.delete(name);
+    for (const name of ['log', 'netlog', 'muted', 'resetsave', 'manual', 'layout']) invite.searchParams.delete(name);
     document.getElementById('invite-link').value = invite.href;
     roomMessage.textContent = 'Share this link to meet here. Play online connects your game profile and race data directly to this room, then opens character and vehicle selection. Only invite holders can match; this relay does not contact Nintendo. Up to 12 players.';
     window.mkwSetRoomConnection('connecting');
@@ -1538,6 +1588,8 @@
       if (discMode === 'local') ENV.MKW_WEB_DISC = discChannel;
       else if (stagedManifestUrl) ENV.MKW_WEB_MANIFEST_URL = stagedManifestUrl;
       if (params.has('muted')) ENV.MKW_WEB_MUTED = '1';
+      // "?layout=wasd" or "?layout=arrows": that keyboard layout for player 1, whatever is saved.
+      if (['wasd', 'arrows'].includes(params.get('layout'))) ENV.MKW_WEB_KEYS = params.get('layout');
       if (params.has('resetsave')) ENV.MKW_WEB_RESET_SAVE = '1';
       if (roomUrl) ENV.MKW_WEB_ROOM = roomUrl;
       if (directRoomJoin) ENV.MKW_WEB_DIRECT_JOIN = '1';
@@ -1617,18 +1669,73 @@
     picture.src = 'game/background.jpg';
   }
 
-  // The controls panel can be hidden; the choice is remembered in this browser.
-  const showControls = document.getElementById('show-controls');
-  const setControlsVisible = (visible) => {
-    controlsPanel.hidden = !visible;
-    showControls.hidden = visible;
-    try { localStorage.setItem('mkw-controls-hidden', visible ? '0' : '1'); } catch (e) {}
+  // In the game the menu is a faint button in the corner of the picture (#dock in the stylesheet).
+  // It shows for three seconds after the mouse moves, and opens into a pill on a click or Tab;
+  // a pill item opens its block as a card (#controls, data-card). The game is not paused.
+  const stage = document.getElementById('stage');
+  const dock = document.getElementById('dock');
+  const dockToggle = document.getElementById('dock-toggle');
+  const dockCards = ['controls', 'saves', 'room', 'help'];
+  const dockItem = (name) => document.getElementById('dock-' + name);
+  let dockIdle = 0;
+  function wakeDock(ms = 3000) {
+    stage.classList.add('awake');
+    clearTimeout(dockIdle);
+    dockIdle = setTimeout(() => stage.classList.remove('awake'), ms);
+  }
+  const showCard = (name) => {
+    controlsPanel.dataset.card = name;
+    controlsPanel.hidden = !name;
+    for (const card of dockCards) dockItem(card).setAttribute('aria-expanded', String(card === name));
   };
-  let controlsHidden = false;
-  try { controlsHidden = localStorage.getItem('mkw-controls-hidden') === '1'; } catch (e) {}
-  setControlsVisible(!controlsHidden);
-  document.getElementById('hide-controls').addEventListener('click', () => { setControlsVisible(false); Module.canvas.focus(); });
-  showControls.addEventListener('click', () => { setControlsVisible(true); Module.canvas.focus(); });
+  const setDockOpen = (open) => {
+    dock.classList.toggle('open', open);
+    dockToggle.setAttribute('aria-expanded', String(open));
+    if (!open) {
+      showCard('');
+      if (gameStarted && !runtimeFailed) Module.canvas.focus();
+    }
+    wakeDock();
+  };
+  for (const type of ['mousemove', 'mousedown', 'touchstart']) stage.addEventListener(type, () => wakeDock(), { passive: true });
+  dockToggle.addEventListener('click', () => setDockOpen(!dock.classList.contains('open')));
+  for (const card of dockCards) {
+    dockItem(card).addEventListener('click', () => {
+      if (!dock.classList.contains('open')) setDockOpen(true);
+      showCard(controlsPanel.dataset.card === card ? '' : card);
+    });
+  }
+  dockItem('room').hidden = !roomUrl;
+  // For players who never touch the mouse: Tab, pressed in the game, opens the pill and moves
+  // the focus into it (Tab then walks its items); Escape closes it while the focus is inside.
+  // Escape in the game stays the game's own (its Quit dialog). Not while a key is being chosen,
+  // and not if the player gave Tab to the game in F10. Capturing, and registered before the
+  // volume slider's key guard below, so it also works with the focus on the slider.
+  window.addEventListener('keydown', (event) => {
+    if (!gameStarted || event.repeat || document.body.classList.contains('pregame') || liveBindings?.editing) return;
+    const inMenu = dock.contains(event.target) || controlsPanel.contains(event.target);
+    if (event.key === 'Escape' && inMenu) {
+      setDockOpen(false);
+    } else if (event.key === 'Tab' && !inMenu && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      const bound = liveBindings
+        ? [...Object.values(liveBindings.buttons || {}), ...Object.values(liveBindings.axes || {}), liveBindings.mute] : [];
+      if (bound.includes('Tab')) return;
+      setDockOpen(true);
+      dockItem('controls').focus();
+    } else {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  // Full screen takes the stage, so the corner button and its cards come along.
+  const fullscreenToggle = document.getElementById('fullscreen-toggle');
+  fullscreenToggle.hidden = typeof stage.requestFullscreen !== 'function';
+  fullscreenToggle.addEventListener('click', () => {
+    const leaving = document.fullscreenElement;
+    Promise.resolve(leaving ? document.exitFullscreen() : stage.requestFullscreen()).catch(() => {});
+    Module.canvas.focus();
+  });
 
   // Two looks (the stylesheet): light by default, dark when the system prefers it or the player
   // chooses it with the Dark/Light button; the choice is remembered in this browser.
@@ -1681,10 +1788,12 @@
   };
   volumeSlider.addEventListener('input', () => changeVolume(false));
   volumeSlider.addEventListener('change', () => changeVolume(true));
-  // Arrow keys on the slider adjust volume without also steering/navigating the game.
+  // Keys pressed in the pill or a card stay there: arrow keys on the slider adjust the volume
+  // without steering, and Enter or Space on a button does not also pause or brake.
   for (const type of ['keydown', 'keyup']) {
     window.addEventListener(type, (event) => {
-      if (event.target === volumeSlider || event.target === roomName) event.stopImmediatePropagation();
+      if (event.target === volumeSlider || event.target === roomName || dock.contains(event.target)
+          || controlsPanel.contains(event.target)) event.stopImmediatePropagation();
     }, true);
   }
   muteButton.addEventListener('click', () => {
@@ -1738,7 +1847,7 @@
     if (discMode === 'local') {
       discPick.disabled = true;
       discReuse.hidden = true;
-      controlsPanel.insertBefore(discPanel, controlsPanel.querySelector(':scope > .head'));
+      controlsPanel.append(discPanel);
     }
     leaveMenu(true);
     saveRoomName();
@@ -1757,6 +1866,7 @@
       overlay.hidden = true;
       statusEl.textContent = '';
     }
+    wakeDock(6000);
     Module.canvas.focus();
     Module.callMain([]);
   });

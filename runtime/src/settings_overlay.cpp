@@ -28,6 +28,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <iostream>
 #include <string>
@@ -617,23 +619,52 @@ void DrawKeyBinding(const char* label, int scancode, RebindKind kind, uint16_t t
 
 }
 
-void ApplyWasdPreset(uint32_t port) {
-    const std::array<int, PAD_BUTTON_COUNT> keys = {
+// A keyboard layout for one port. Buttons are indexed like kControllerButtons (A, B, X, Y, Start,
+// Z, L, R, D-pad up, down, left, right); axes are the control stick right, left, up, down, the
+// C-stick right, left, up, down, then the analog pull of L and of R.
+struct KeyboardPreset {
+    std::array<int, PAD_BUTTON_COUNT> keys;
+    std::array<int, PAD_AXIS_COUNT> axes;
+};
+
+// The arrow keys steer and the left hand does the rest, as PC kart racers and Dolphin's
+// GameCube pad default have it: X accelerate (A), Z brake (B), Left Shift drift (R), Space item
+// (L), W/A/S/D the D-pad (W: trick, wheelie). The default.
+constexpr KeyboardPreset kArrowsPreset = {
+    {
+        SDL_SCANCODE_X, SDL_SCANCODE_Z, SDL_SCANCODE_C, SDL_SCANCODE_V,
+        SDL_SCANCODE_RETURN, SDL_SCANCODE_Q, SDL_SCANCODE_SPACE, SDL_SCANCODE_LSHIFT,
+        SDL_SCANCODE_W, SDL_SCANCODE_S, SDL_SCANCODE_A, SDL_SCANCODE_D,
+    },
+    {
+        SDL_SCANCODE_RIGHT, SDL_SCANCODE_LEFT, SDL_SCANCODE_UP, SDL_SCANCODE_DOWN,
+        SDL_SCANCODE_L, SDL_SCANCODE_J, SDL_SCANCODE_I, SDL_SCANCODE_K,
+        SDL_SCANCODE_SPACE, SDL_SCANCODE_LSHIFT,
+    },
+};
+
+// W/A/S/D steer and the mouse buttons accelerate and drift, as Dolphin's emulated Wii Remote
+// and Nunchuk default has it.
+constexpr KeyboardPreset kWasdPreset = {
+    {
         PAD_KEY_MOUSE_LEFT, SDL_SCANCODE_SPACE, SDL_SCANCODE_E, SDL_SCANCODE_Q,
         SDL_SCANCODE_RETURN, PAD_KEY_MOUSE_MIDDLE, SDL_SCANCODE_LSHIFT, PAD_KEY_MOUSE_RIGHT,
         SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT,
-    };
-    for (size_t i = 0; i < keys.size(); ++i)
-        PADSetKeyButtonBinding(port, {keys[i], kControllerButtons[i].padButton});
-    const std::array<int, PAD_AXIS_COUNT> axes = {
+    },
+    {
         SDL_SCANCODE_D, SDL_SCANCODE_A, SDL_SCANCODE_W, SDL_SCANCODE_S,
         SDL_SCANCODE_L, SDL_SCANCODE_J, SDL_SCANCODE_I, SDL_SCANCODE_K,
         SDL_SCANCODE_LSHIFT, PAD_KEY_MOUSE_RIGHT,
-    };
+    },
+};
+
+void ApplyKeyboardPreset(uint32_t port, const KeyboardPreset& preset) {
+    for (size_t i = 0; i < preset.keys.size(); ++i)
+        PADSetKeyButtonBinding(port, {preset.keys[i], kControllerButtons[i].padButton});
     uint32_t axisCount = 0;
     auto* mappings = PADGetKeyAxisBindings(port, &axisCount);
-    for (uint32_t i = 0; i < axisCount; ++i)
-        PADSetKeyAxisBinding(port, {axes[i], mappings[i].padAxis, 1});
+    for (uint32_t i = 0; i < axisCount && i < preset.axes.size(); ++i)
+        PADSetKeyAxisBinding(port, {preset.axes[i], mappings[i].padAxis, 1});
     PADSerializeMappings();
 }
 
@@ -657,8 +688,12 @@ bool DrawKeyboardSettings(uint32_t port) {
 #else
     ImGui::TextDisabled("Replaces the gamepad on this port. F10 opens settings.");
 #endif
-    if (ImGui::Button("Use WASD + mouse preset") || usePreset) {
-        ApplyWasdPreset(port);
+    if (ImGui::Button("Use arrow keys preset") || usePreset) {
+        ApplyKeyboardPreset(port, kArrowsPreset);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Use WASD + mouse preset")) {
+        ApplyKeyboardPreset(port, kWasdPreset);
     }
     ImGui::SeparatorText("Button mapping");
     for (uint32_t i = 0; i < count; ++i) {
@@ -1521,12 +1556,18 @@ void ApplyInputBlockState() {
 } // namespace
 
 void EnableKeyboardByDefault() noexcept {
+    // The page's "?layout=wasd" or "?layout=arrows" (MKW_WEB_KEYS) asks for that layout on port 1
+    // whatever is saved: the browser test drivers and their recorded routes use WASD + mouse.
+    const char* requested = std::getenv("MKW_WEB_KEYS");
+    const KeyboardPreset* forced = requested == nullptr ? nullptr
+        : std::strcmp(requested, "wasd") == 0 ? &kWasdPreset
+        : std::strcmp(requested, "arrows") == 0 ? &kArrowsPreset : nullptr;
     uint32_t count = 0;
-    if (PADGetKeyButtonBindings(0, &count) != nullptr) {
+    if (PADGetKeyButtonBindings(0, &count) != nullptr && forced == nullptr) {
         return;
     }
     PADSetKeyboardActive(0, TRUE);
-    ApplyWasdPreset(0);
+    ApplyKeyboardPreset(0, forced != nullptr ? *forced : kArrowsPreset);
 }
 
 namespace {

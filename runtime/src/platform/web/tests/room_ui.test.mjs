@@ -113,7 +113,9 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
     'room-message', 'room-panel', 'room-name', 'room-connection', 'room-roster', 'room-count',
     'room-game-status', 'cancel-room-launch', 'lobby-card', 'room-setup', 'room-invite',
     'invite-link', 'join-room', 'create-room', 'copy-invite', 'leave-room', 'status', 'start',
-    'reload', 'overlay', 'controls', 'show-controls', 'hide-controls', 'canvas', 'volume',
+    'reload', 'overlay', 'controls', 'stage', 'dock', 'dock-toggle', 'dock-controls', 'dock-saves', 'dock-room', 'dock-help',
+    'dock-room-count', 'fullscreen-toggle',
+    'canvas', 'volume',
     'volume-value', 'toggle-mute', 'keyboard-off', 'binding-help', 'room-code',
     'hint', 'diag', 'diag-text', 'diag-copy', 'game-runtime', 'save-status', 'save-log', 'diag-save-log', 'detailed-log',
     'disc-panel', 'disc-status', 'disc-pick', 'disc-reuse', 'disc-file', 'disc-clear',
@@ -1096,6 +1098,45 @@ test('Start closes the menu and hands its blocks to the controls panel', async (
   menu.dataset.view = 'kept';
   elements.get('nav-friends').dispatch('click');
   assert.equal(menu.dataset.view, 'kept', 'the menu is not redrawn once the game runs');
+});
+
+// In the game the menu is a button in the corner that opens into a pill (#dock); a pill item
+// opens its block as a card in #controls, and closing the pill closes the card.
+test('in the game the corner button opens the pill and a pill item opens its card', async () => {
+  const { context, elements } = setupRoomPage('');
+  await settle();
+  const dock = elements.get('dock'), controls = elements.get('controls'), toggle = elements.get('dock-toggle');
+  context.Module.callMain = () => {};
+  context.Module.onRuntimeInitialized();
+  assert.equal(elements.get('dock-room').hidden, true, 'no room item outside a room');
+  elements.get('start').dispatch('click');
+  assert.equal(elements.get('stage').classList.contains('awake'), true, 'the button shows as the game starts');
+  toggle.dispatch('click');
+  assert.equal(dock.classList.contains('open'), true);
+  assert.equal(toggle.attributes.get('aria-expanded'), 'true');
+  elements.get('dock-controls').dispatch('click');
+  assert.equal(controls.dataset.card, 'controls');
+  assert.equal(controls.hidden, false);
+  assert.equal(elements.get('dock-controls').attributes.get('aria-expanded'), 'true');
+  elements.get('dock-help').dispatch('click');
+  assert.equal(controls.dataset.card, 'help');
+  assert.equal(elements.get('dock-controls').attributes.get('aria-expanded'), 'false');
+  elements.get('dock-help').dispatch('click');
+  assert.equal(controls.hidden, true, 'the same item closes its card');
+  elements.get('dock-saves').dispatch('click');
+  toggle.dispatch('click');
+  assert.equal(dock.classList.contains('open'), false);
+  assert.equal(controls.hidden, true, 'closing the pill closes the card');
+  assert.equal(toggle.attributes.get('aria-expanded'), 'false');
+});
+
+test('in a room the pill has a room item that carries the head count', async () => {
+  const { context, elements } = setupRoomPage();
+  await settle();
+  assert.equal(elements.get('dock-room').hidden, false);
+  context.window.mkwSetRoomPlayers(JSON.stringify({ players: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] }), 1);
+  assert.equal(elements.get('room-count').textContent, '2 / 12');
+  assert.equal(elements.get('dock-room-count').textContent, '2 / 12');
 });
 
 test('a failure before Start replaces the menu with its message', async () => {
