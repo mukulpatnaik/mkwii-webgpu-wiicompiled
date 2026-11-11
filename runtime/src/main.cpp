@@ -1447,6 +1447,10 @@ int RuntimeMain(int argc, char** argv) {
         }
 #if defined(__EMSCRIPTEN__)
         settings_overlay::EnableKeyboardByDefault();
+        // SDL writes the window title into document.title, so the tab would read "WiiCompiled"
+        // (the app name, which also names the storage paths and so stays). Put the page's own
+        // title back.
+        VISetWindowTitle("Mario Kart Wii");
 #endif
         if (requestedBackend != BACKEND_AUTO && auroraInfo.backend != requestedBackend) {
             RT_LOG(RT_TAG_RUNTIME) << "graphics_api=\"" << backend
