@@ -6,7 +6,7 @@
 <!-- The room relay a hosted page uses for online play (tools/relay in mukulpatnaik/mkwii-webgpu, deployed to
      your own Cloudflare account); tools/hosting/stage-release.sh --rooms-host sets it. A page on 127.0.0.1 or
      localhost uses ws://127.0.0.1:8787 instead (tools/relay/dev-local.sh); ?room=ws(s)://... overrides both. -->
-<meta name="mkw-rooms-host" content="mkw-rooms.athenaaa.workers.dev">
+<meta name="mkw-rooms-host" content="mkw-rooms.mukulpatnaik.workers.dev">
 <title>Mario Kart Wii</title>
 <style>
   /* Two looks, one layout. Light is the Wii Menu: a grey pinstriped ground, white rounded tiles,
@@ -846,7 +846,7 @@
   // ws://127.0.0.1:8787); a hosted page uses the host in its <meta name="mkw-rooms-host"> tag, set
   // when the release folder is staged. "?room=<code>" comes from an invite link; "?room=ws(s)://..."
   // names a relay socket directly and wins over both.
-  const ROOMS_HOST = document.querySelector('meta[name="mkw-rooms-host"]')?.content || 'mkw-rooms.athenaaa.workers.dev';
+  const ROOMS_HOST = document.querySelector('meta[name="mkw-rooms-host"]')?.content || 'mkw-rooms.mukulpatnaik.workers.dev';
   const localRoomServer = ['127.0.0.1', 'localhost'].includes(location.hostname);
   const roomsApi = localRoomServer ? 'http://127.0.0.1:8787' : `https://${ROOMS_HOST}`;
   const roomsSocket = roomsApi.replace(/^http/, 'ws');
