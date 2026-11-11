@@ -119,7 +119,7 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
     'disc-panel', 'disc-status', 'disc-pick', 'disc-reuse', 'disc-file', 'disc-clear',
     // The menu shown before the game starts.
     'menu', 'menu-nav', 'nav-solo', 'nav-friends', 'nav-controls', 'nav-saves', 'nav-solo-desc',
-    'nav-friends-desc', 'disc-chip', 'disc-chip-text', 'change-disc', 'open-problems',
+    'nav-friends-desc', 'disc-chip', 'disc-chip-text', 'change-disc', 'open-problems', 'foot-help', 'menu-back',
     'problems-dialog', 'disc-invite', 'disc-back', 'solo-disc', 'start-slot-solo', 'start-slot-friends',
     'room-reload-note', 'foot-desc', 'foot-load', 'load-label', 'load-bar', 'load-fill', 'load-pct',
     'bindings-block', 'saves-panel', 'problems-block',
@@ -941,27 +941,46 @@ test('Clear local game data stops the reader and asks for the disc again', async
 });
 
 // The menu before the game starts (#menu): with a local disc image the disc screen comes first,
-// then the four choices; a staged game folder goes straight to the choices.
-test('a staged game folder opens the menu on Solo, and the choices switch the panel', async () => {
+// then the two tiles; a staged game folder goes straight to the tiles. A tile or a round button
+// opens its channel screen (data-screen="open"); Wii Menu or Escape closes it.
+test('a staged game folder opens the menu on the tiles, and a tile opens its channel screen', async () => {
   const { elements } = setupRoomPage('');
   await settle();
   const menu = elements.get('menu');
   assert.equal(menu.dataset.view, 'menu');
   assert.equal(menu.dataset.item, 'solo');
+  assert.equal(menu.dataset.screen, '');
   assert.equal(elements.get('disc-chip').hidden, true);
   assert.equal(elements.get('change-disc').hidden, true);
   assert.equal(elements.get('nav-solo').disabled, false);
   elements.get('nav-friends').dispatch('click');
   assert.equal(menu.dataset.item, 'friends');
+  assert.equal(menu.dataset.screen, 'open');
+  assert.equal(elements.get('menu-back').focused, true);
   assert.equal(elements.get('nav-friends').attributes.get('aria-current'), 'true');
   assert.equal(elements.get('nav-solo').attributes.get('aria-current'), 'false');
   assert.equal(elements.get('foot-desc').textContent, 'Up to 12 players.');
   assert.equal(elements.get('room-reload-note').textContent, 'Creating or joining a room reloads this page.');
+  elements.get('menu-back').dispatch('click');
+  assert.equal(menu.dataset.screen, '');
+  assert.equal(menu.dataset.item, 'friends', 'closing a screen keeps the choice');
+  assert.equal(elements.get('nav-friends').focused, true);
+  elements.get('nav-controls').dispatch('click');
+  assert.equal(menu.dataset.item, 'controls');
+  assert.equal(menu.dataset.screen, 'open');
+  menu.dispatch('keydown', { key: 'Escape' });
+  assert.equal(menu.dataset.screen, '');
+  assert.equal(elements.get('nav-controls').focused, true);
+  // Arrow keys move between the two tiles without opening anything.
   let prevented = false;
   elements.get('menu-nav').dispatch('keydown', { key: 'ArrowDown', preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
   assert.equal(menu.dataset.item, 'controls');
-  assert.equal(elements.get('nav-controls').focused, true);
+  assert.equal(menu.dataset.screen, '');
+  assert.equal(elements.get('nav-friends').focused, true);
+  elements.get('foot-help').dispatch('click');
+  assert.equal(elements.get('problems-dialog').open, true);
+  elements.get('problems-dialog').open = false;
   elements.get('open-problems').dispatch('click');
   assert.equal(elements.get('problems-dialog').open, true);
 });
@@ -1036,6 +1055,7 @@ test('a room link opens the menu on Play with friends, with Start beside the lob
   const menu = elements.get('menu');
   assert.equal(menu.dataset.view, 'menu');
   assert.equal(menu.dataset.item, 'friends');
+  assert.equal(menu.dataset.screen, 'open');
   assert.equal(elements.get('nav-solo').disabled, true);
   assert.equal(elements.get('nav-solo-desc').textContent, 'Leave the room to play solo');
   assert.equal(elements.get('start').parentNode, elements.get('start-slot-friends'));
@@ -1052,7 +1072,8 @@ test('a room link without a disc image asks for the disc first, then shows the l
   pick().onmessage({ data: opened() });
   assert.equal(menu.dataset.view, 'menu');
   assert.equal(menu.dataset.item, 'friends');
-  assert.equal(elements.get('nav-friends').focused, true);
+  assert.equal(menu.dataset.screen, 'open', 'a room link opens the Play with friends screen');
+  assert.equal(elements.get('menu-back').focused, true);
 });
 
 test('Start closes the menu and hands its blocks to the controls panel', async () => {

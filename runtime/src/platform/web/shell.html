@@ -9,10 +9,11 @@
 <meta name="mkw-rooms-host" content="mkw-rooms.athenaaa.workers.dev">
 <title>WiiCompiled</title>
 <style>
-  /* Two looks, one layout. Light is the Wii Menu: a grey ground, white rounded tiles, Wii-blue
-     glossy pills, grey key caps. Dark is the Disc Channel: deep blue glass, white glossy pills
-     with blue text. The Start button is the yellow OK button from the game's own menus in both.
-     Dark follows the system preference unless the player picks a theme (data-theme, remembered). */
+  /* Two looks, one layout. Light is the Wii Menu: a grey pinstriped ground, white rounded tiles,
+     Wii-blue glossy pills, grey key caps, a curved bar with round buttons. Dark is the Disc
+     Channel: deep blue glass, white glossy pills with blue text, yellow for what is selected.
+     The Start button is the yellow OK button from the game's own menus in both. Dark follows the
+     system preference unless the player picks a theme (data-theme, remembered). */
   :root {
     color-scheme: light;
     --bg: #e9edf1; --panel: #ffffff; --line: #d3d8dd; --text: #2b2f33; --muted: #5f666d;
@@ -23,6 +24,15 @@
     --input-bg: #fafbfc; --input-line: #c3c9cf; --ok: #1f8a4c; --error: #c62828;
     --card: #ffffffee; --stage-ring: 0 0 0 5px #ffffff, 0 2px 10px rgba(0, 0, 0, .18);
     --tile-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+    /* The menu before the game (body.pregame): ground, tiles, the curved bar, the round buttons. */
+    --ground: linear-gradient(#f4f5f7, #dde1e5);
+    --stripes: repeating-linear-gradient(180deg, rgba(255, 255, 255, .6) 0 1px, rgba(255, 255, 255, 0) 1px 4px);
+    --stripes-size: auto; --tile-stripes: repeating-linear-gradient(180deg, #e6f3fb 0 3px, #ffffff 3px 7px);
+    --glow: 0 0 0 3px #c9ebff, 0 0 0 5px #8fd4ff, 0 0 22px #8fd4ff; --glow-line: #9ad9ff;
+    --title: #5a6066; --title-shadow: #ffffff; --big: #5d6267; --blue: #8fd4ff; --blue-deep: #1f9ae3; --blue-text: #2b8fd1;
+    --bar: #d8dcdf; --bar-hi: #eceef0; --bar-line: #6ec9f3; --screen: linear-gradient(112deg, #f9fafb 0 38%, #eaeef1 38.4% 62%, #f3f5f7 62.4%);
+    --round: radial-gradient(circle at 50% 28%, #ffffff, #e3e7ea 62%, #c9cfd4); --round-line: #bcc3c9; --round-text: #7a8086;
+    --round-shadow: 0 4px 8px rgba(0, 0, 0, .18), inset 0 4px 5px #ffffff; --disc-slot: #f3f8fd; --disc-hub: #dbeaf8;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -35,6 +45,14 @@
       --input-bg: #0b1a33; --input-line: #4f7db3; --ok: #8be0a4; --error: #ff8a80;
       --card: #112a4cf2; --stage-ring: 0 0 0 1px #3f6a9c, 0 10px 24px rgba(0, 10, 30, .6);
       --tile-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 10px 24px rgba(0, 10, 30, .5);
+      --ground: linear-gradient(#17367a, #0a1a44);
+      --stripes: linear-gradient(45deg, rgba(255, 255, 255, .035) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, .035) 75%);
+      --stripes-size: 56px 56px; --tile-stripes: repeating-linear-gradient(180deg, #16397e 0 3px, #10295c 3px 7px);
+      --glow: 0 0 0 4px #ffd21f, 0 0 0 10px rgba(255, 210, 31, .3), 0 4px 0 #06112e; --glow-line: #ffd21f;
+      --title: #ffffff; --title-shadow: #06112e; --big: #ffffff; --blue: #7fb6ec; --blue-deep: #ffd21f; --blue-text: #ffd21f;
+      --bar: #06112e; --bar-hi: #0b1f4f; --bar-line: #4f86c6; --screen: linear-gradient(#143373, #0d2255);
+      --round: radial-gradient(circle at 50% 28%, #2a4f80, #143373 62%, #0d2255); --round-line: #4f86c6; --round-text: #ffd21f;
+      --round-shadow: 0 4px 0 #06112e; --disc-slot: #0b1f4f; --disc-hub: #143373;
     }
   }
   :root[data-theme="dark"] {
@@ -47,6 +65,14 @@
     --input-bg: #0b1a33; --input-line: #4f7db3; --ok: #8be0a4; --error: #ff8a80;
     --card: #112a4cf2; --stage-ring: 0 0 0 1px #3f6a9c, 0 10px 24px rgba(0, 10, 30, .6);
     --tile-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 10px 24px rgba(0, 10, 30, .5);
+    --ground: linear-gradient(#17367a, #0a1a44);
+    --stripes: linear-gradient(45deg, rgba(255, 255, 255, .035) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, .035) 75%);
+    --stripes-size: 56px 56px; --tile-stripes: repeating-linear-gradient(180deg, #16397e 0 3px, #10295c 3px 7px);
+    --glow: 0 0 0 4px #ffd21f, 0 0 0 10px rgba(255, 210, 31, .3), 0 4px 0 #06112e; --glow-line: #ffd21f;
+    --title: #ffffff; --title-shadow: #06112e; --big: #ffffff; --blue: #7fb6ec; --blue-deep: #ffd21f; --blue-text: #ffd21f;
+    --bar: #06112e; --bar-hi: #0b1f4f; --bar-line: #4f86c6; --screen: linear-gradient(#143373, #0d2255);
+    --round: radial-gradient(circle at 50% 28%, #2a4f80, #143373 62%, #0d2255); --round-line: #4f86c6; --round-text: #ffd21f;
+    --round-shadow: 0 4px 0 #06112e; --disc-slot: #0b1f4f; --disc-hub: #143373;
   }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
                font: 14px/1.4 Nunito, "Varela Round", ui-rounded, "Hiragino Maru Gothic ProN",
@@ -169,65 +195,60 @@
   #controls #disc-panel { width: auto; background: none; border: 0; border-bottom: 1px solid var(--line);
     border-radius: 0; padding: 0 0 16px; margin-bottom: 16px; box-shadow: none; }
   #controls #disc-panel .disc-actions, #controls #disc-intro { display: none; }
-  /* Before the game starts the overlay is the whole page (body.pregame): a menu in the game's
-     own look, navy with yellow. With a local disc image it opens on the disc screen, since
-     nothing else works without one; then come four choices: Solo, Play with friends, Controls,
-     Saves. Start drops the class: the overlay is again the small layer over the game picture,
-     and the room, disc, key, save and problem blocks sit in the controls panel. */
+  /* Before the game starts the overlay is the whole page (body.pregame): the Wii Menu in the
+     page's colours. With a local disc image it opens on the disc screen, since nothing else works
+     without one; then two channel tiles, Play solo and Play with friends, above the curved bar
+     whose round buttons are Saves, Controls and Help. A tile or a round button opens its channel
+     screen (data-screen="open"): the panel on a white screen, with a grey bar holding Wii Menu
+     (back) and Start. Start drops the class: the overlay is again the small layer over the game
+     picture, and the room, disc, key, save and help blocks sit in the controls panel. */
   body.pregame #controls { visibility: hidden; }
-  body.pregame #overlay { position: fixed; inset: 0; z-index: 10; border-radius: 0; padding: 0;
-    color: #e8f0f8; background-color: #0b1f4f;
-    background-image: linear-gradient(45deg, rgba(255, 255, 255, .035) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, .035) 75%),
-      linear-gradient(45deg, rgba(255, 255, 255, .035) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, .035) 75%),
-      linear-gradient(#17367a, #0a1a44);
-    background-size: 56px 56px, 56px 56px, 100% 100%; background-position: 0 0, 28px 28px, 0 0; }
+  body.pregame #overlay { position: fixed; inset: 0; z-index: 10; border-radius: 0; padding: 0; color: var(--text);
+    background: var(--stripes), var(--ground); background-size: var(--stripes-size), 100% 100%; }
   /* A problem before Start replaces the menu with the message, on the same ground. */
-  body.pregame #overlay > #status { color: #fff; font-size: 18px; font-weight: 800; }
-  /* The pieces shared with the controls panel (pills, key caps, inputs, notes) take the menu's
-     colours here, and the page theme's once they sit in the controls panel. */
-  body.pregame #overlay, #problems-dialog {
-    color-scheme: dark;
-    --panel: #143373; --line: #4f86c6; --text: #e8f0f8; --muted: #b9d3f2;
-    --key-bg: #1b3a75; --key-line: #5d8fd0; --accent: #ffd21f;
-    --primary-bg: linear-gradient(#fff2a8, #ffe14d 45%, #f5c400 55%, #ffd21f);
-    --primary-line: #6b5a00; --primary-text: #3a3000;
-    --ghost-bg: #10295c; --ghost-line: #4f86c6; --ghost-text: #e8f0f8;
-    --input-bg: #0b1f4f; --input-line: #5d8fd0; --ok: #9df0bd; --error: #ffb4a8; --card: transparent; }
+  body.pregame #overlay > #status { color: var(--text); font-size: 18px; font-weight: 800; }
   #menu, #problems-dialog { color: var(--text); font-size: 16px; }
-  #menu { flex: 1 0 auto; align-self: stretch; display: flex; flex-direction: column; }
+  #menu { flex: 1 0 auto; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
   #menu[hidden], #menu [hidden] { display: none !important; }
-  #menu :focus-visible, #problems-dialog :focus-visible { outline: 3px solid #ffd21f; outline-offset: 3px; }
+  #menu :focus-visible, #problems-dialog :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
   #menu .note { font-size: 14px; margin: 10px 0 0; }
-  #menu h3 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #ffd21f;
+  #menu h3 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--blue-text);
              margin: 0 0 8px; font-weight: 800; }
-  #menu button.link, #problems-dialog button.link { font-size: 14px; padding: 8px 16px; border-width: 2px;
-                                                    box-shadow: none; }
+  #menu button.link, #problems-dialog button.link { font-size: 14px; padding: 8px 16px; }
   #menu svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   #menu-head { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
                padding: clamp(14px, 3vh, 28px) clamp(16px, 4vw, 48px); }
-  #menu-head h1 { margin: 0; font-size: clamp(26px, 3.4vw, 42px); line-height: 1.1; font-weight: 900;
-                  font-style: italic; color: #fff; text-shadow: 0 3px 0 #06112e; }
-  #menu-head h1 span { margin-left: .4em; font-size: .43em; font-weight: 800; color: #ffd21f; white-space: nowrap;
-                       text-shadow: 0 2px 0 #06112e; }
+  #menu-head h1 { margin: 0; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 2px .5em;
+                  font-size: clamp(26px, 3.4vw, 42px); line-height: 1.1; }
+  #menu-head h1 span { padding-bottom: .42em; font-size: .43em; font-weight: 800; font-style: italic; color: var(--blue-text);
+                       white-space: nowrap; }
+  #wordmark { display: block; height: 1.3em; width: auto; fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round;
+              filter: drop-shadow(0 2px 0 var(--title-shadow)); }
+  #wordmark .mk { stroke: var(--title); }
+  #wordmark .wii { stroke: var(--blue-deep); }
+  #wordmark .dot { stroke: none; }
+  #wordmark .mk .dot { fill: var(--title); }
+  #wordmark .wii .dot { fill: var(--blue-deep); }
   #menu-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  #disc-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: #9df0bd; }
+  #disc-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: var(--ok); }
   #disc-chip svg { width: 20px; height: 20px; stroke-width: 3; }
-  #menu-body { flex: 1 0 auto; display: flex; align-items: center; justify-content: center;
-               padding: 8px clamp(16px, 4vw, 48px) 28px; }
+  /* Help is a pill in the header on the disc screen and a round button in the bar afterwards. */
+  #menu[data-view="menu"] #open-problems { display: none; }
+  #menu-body { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; min-height: 0;
+               padding: 8px clamp(16px, 4vw, 48px) 20px; }
   #menu-body > div { display: none; width: 100%; }
-  #menu[data-view="boot"] #view-boot { display: block; text-align: center; color: #b9d3f2; font-weight: 700; }
-  /* The disc screen. */
+  #menu[data-view="boot"] #view-boot { display: block; text-align: center; color: var(--muted); font-weight: 700; }
+  /* The disc screen: the card alone, no tiles yet. */
   #menu[data-view="disc"] #view-disc { display: flex; flex-direction: column; align-items: center; gap: 18px; }
-  #disc-invite { margin: 0; padding: 9px 20px; border-radius: 999px; background: #ffd21f; color: #3a3000;
-                 font-weight: 800; text-align: center; }
-  #disc-tagline { margin: 0; color: #b9d3f2; font-weight: 700; text-align: center; }
+  #disc-invite { margin: 0; padding: 9px 20px; border-radius: 999px; background: var(--primary-bg); color: var(--primary-text);
+                 border: 1px solid var(--primary-line); font-weight: 800; text-align: center; }
+  #disc-tagline { margin: 0; color: var(--muted); font-weight: 700; text-align: center; }
   #menu #disc-panel { width: min(820px, 100%); display: flex; align-items: center; gap: clamp(20px, 4vw, 48px);
-    border: 3px solid #4f86c6; border-radius: 28px; background: linear-gradient(#143373, #0d2255);
-    box-shadow: 0 4px 0 #06112e; padding: clamp(22px, 4vh, 44px) clamp(20px, 4vw, 48px); }
+    border: 2px solid var(--line); border-radius: 28px; background: var(--panel); box-shadow: var(--tile-shadow);
+    padding: clamp(22px, 4vh, 44px) clamp(20px, 4vw, 48px); }
   #disc-main { flex: 1; min-width: 0; }
-  #menu #disc-panel h2 { margin: 0 0 8px; font-size: clamp(26px, 3vw, 36px); line-height: 1.15; font-weight: 900;
-                         font-style: italic; color: #fff; }
-  #menu #disc-panel .note { margin: 0 0 20px; font-size: 16px; color: #d3e4f8; }
+  #menu #disc-panel h2 { margin: 0 0 8px; font-size: clamp(26px, 3vw, 36px); line-height: 1.15; font-weight: 600; color: var(--big); }
+  #menu #disc-panel .note { margin: 0 0 20px; font-size: 16px; color: var(--muted); }
   #menu .disc-actions { gap: 12px; }
   #menu #disc-status { margin: 16px 0 12px; min-height: 1.4em; font-size: 15px; }
   /* One heading and one line of help for three states: nothing chosen (.pre), a remembered disc
@@ -243,87 +264,130 @@
   #disc-panel:not([data-disc="ok"]) #disc-art .badge { display: none; }
   #disc-panel[data-disc="reading"] #disc-art .disc { transform-origin: 120px 120px; animation: disc-spin 1.4s linear infinite; }
   @keyframes disc-spin { to { transform: rotate(360deg); } }
-  /* The big buttons: yellow for the one to press, an outline for the other. */
-  #menu .disc-actions button { min-height: 64px; padding: 8px 30px; border-radius: 22px; border: 3px solid #7fb6ec;
-    background: none; color: #fff; box-shadow: none; font-size: clamp(17px, 2vw, 22px); font-weight: 900; font-style: italic; }
-  #menu #start { min-height: 80px; padding: 8px 56px; border-width: 3px; border-radius: 22px;
-                 font-size: clamp(22px, 2.4vw, 28px); }
-  #menu #start:not(:disabled), #menu #disc-reuse, #menu #disc-back,
-  #menu #disc-panel:not(.returning):not([data-disc="ok"]) #disc-pick {
-    border: 3px solid #6b5a00; color: #3a3000; box-shadow: 0 5px 0 #06112e; text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
-    background: linear-gradient(#fff2a8, #ffe14d 45%, #f5c400 55%, #ffd21f); }
-  #menu #start:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 #06112e; }
-  /* The four choices and the panel of the chosen one. */
-  #menu[data-view="menu"] #view-menu { display: grid; grid-template-columns: minmax(240px, 5fr) minmax(0, 8fr);
-    gap: clamp(20px, 3vw, 48px); max-width: 1290px; }
-  #menu-nav { display: flex; flex-direction: column; gap: 16px; }
-  #menu-nav button { flex: 1; display: flex; align-items: center; gap: 18px; min-height: clamp(80px, 13vh, 116px);
-    padding: 8px 22px; border: 3px solid #5d8fd0; border-radius: 24px; background: linear-gradient(#eef4ff, #c9dcf6);
-    box-shadow: 0 4px 0 #06112e; color: #12305f; font: inherit; text-align: left; cursor: pointer; }
-  #menu-nav button[aria-current="true"] { border: 4px solid #ffd21f; background: linear-gradient(#fff, #e3eeff);
-    box-shadow: 0 0 0 6px rgba(255, 210, 31, .3), 0 4px 0 #06112e; }
+  #disc-art .slot .ground { fill: var(--disc-slot); stroke: var(--blue); stroke-width: 3; }
+  #disc-art .slot .ring { fill: none; stroke: var(--line); stroke-width: 3; }
+  #disc-art .hub { fill: var(--disc-hub); stroke: var(--blue); stroke-width: 3; }
+  #disc-art .slot .arrow { fill: none; stroke: var(--blue-deep); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  #disc-art .disc .face { fill: #cfe6fb; stroke: #fff; stroke-width: 4; }
+  #disc-art .disc .groove { fill: none; stroke: #fff; stroke-width: 8; opacity: .7; }
+  #disc-art .disc .shine { fill: none; stroke: #fff; stroke-width: 16; stroke-linecap: round; }
+  #disc-art .disc .inner { fill: #eef4ff; stroke: var(--blue); stroke-width: 3; }
+  #disc-art .badge circle { fill: #157a43; stroke: #fff; stroke-width: 5; }
+  #disc-art .badge path { fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  /* The big buttons: a glossy primary pill for the one to press, a ghost pill for the other. */
+  #menu .disc-actions button { min-height: 60px; padding: 8px 30px; border-radius: 999px; border: 2px solid var(--ghost-line);
+    background: var(--ghost-bg); color: var(--ghost-text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45);
+    font-size: clamp(17px, 2vw, 21px); font-weight: 800; }
+  #menu #disc-reuse, #menu #disc-back, #menu #disc-panel:not(.returning):not([data-disc="ok"]) #disc-pick {
+    background: var(--primary-bg); color: var(--primary-text); border-color: var(--primary-line); }
+  /* The two tiles, then the panel of the chosen one as a channel screen. */
+  #menu[data-view="menu"] #menu-body { align-items: stretch; }
+  #menu[data-view="menu"] #view-menu { display: flex; flex-direction: column; width: min(1180px, 100%); margin: 0 auto; min-height: 0; }
+  #menu-nav { flex: 1 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: clamp(14px, 2.5vw, 32px);
+              min-height: min(340px, 50vh); padding: 6px; }
+  #menu-nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    padding: 20px; border: 2px solid var(--line); border-radius: 28px; background: var(--tile-stripes); box-shadow: var(--tile-shadow);
+    color: var(--blue-text); font: inherit; text-align: center; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
+  #menu-nav button:hover:not(:disabled) { transform: scale(1.03); }
+  #menu-nav button[aria-current="true"] { box-shadow: var(--glow); border-color: var(--glow-line); }
   #menu-nav button:disabled { opacity: .55; cursor: default; }
-  #menu-nav .tile { flex: none; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px;
-                    background: #12305f; color: #fff; }
-  #menu-nav [aria-current="true"] .tile { color: #ffd21f; }
-  #menu-nav svg { width: 32px; height: 32px; }
-  #menu-nav b { display: block; font-size: clamp(19px, 2vw, 24px); line-height: 1.15; font-weight: 900; font-style: italic; }
-  #menu-nav small { display: block; margin-top: 2px; font-size: 14px; font-weight: 700; color: #3d5f93; }
-  #menu-panels { min-width: 0; display: flex; }
+  #menu-nav .logo { width: clamp(120px, 16vw, 200px); height: auto; color: var(--blue-deep); }
+  #menu-nav b { display: block; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.15; font-weight: 800; }
+  #menu-nav small { display: block; margin-top: 2px; font-size: clamp(13px, 1.3vw, 16px); font-weight: 700; color: var(--muted); }
+  #menu[data-screen="open"] #menu-nav, #menu:not([data-screen="open"]) #menu-panels { display: none; }
+  /* The channel screen covers the header and the tiles. */
+  #menu[data-screen="open"] #menu-head { display: none; }
+  #menu[data-screen="open"] #menu-body { padding: 0; background: var(--stripes), var(--screen);
+                                        background-size: var(--stripes-size), 100% 100%; }
+  #menu[data-screen="open"] #view-menu { width: 100%; }
+  #menu-panels { flex: 1; display: flex; min-height: 0; }
   #menu-panels > section { display: none; flex: 1; min-width: 0; box-sizing: border-box; overflow-y: auto;
-    min-height: min(480px, calc(100vh - 230px)); max-height: max(420px, calc(100vh - 230px)); border: 3px solid #4f86c6; border-radius: 28px;
-    background: linear-gradient(#143373, #0d2255); box-shadow: 0 4px 0 #06112e;
-    padding: clamp(18px, 3vh, 32px) clamp(18px, 2.5vw, 36px); }
+    padding: clamp(18px, 4vh, 40px) clamp(18px, 5vw, 64px); }
   #menu[data-item="solo"] #panel-solo, #menu[data-item="friends"] #panel-friends,
   #menu[data-item="controls"] #panel-controls, #menu[data-item="saves"] #panel-saves { display: flex; flex-direction: column; }
-  #menu-panels h2 { margin: 0 0 10px; font-size: clamp(22px, 2.4vw, 28px); line-height: 1.15; font-weight: 900;
-                    font-style: italic; color: #fff; }
+  #menu-panels h2 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 54px); line-height: 1.1; font-weight: 600; color: var(--big); }
   #panel-solo { align-items: center; justify-content: center; text-align: center; }
-  #start-slot-solo { margin: 22px 0 12px; }
+  #panel-solo h2 { font-size: clamp(36px, 6vw, 84px); }
+  #panel-solo .note { font-size: 16px; }
   #solo-disc { overflow-wrap: anywhere; }
+  #panel-friends, #panel-controls, #panel-saves { width: 100%; max-width: 1000px; margin: 0 auto; }
   #menu #panel-friends { overflow: hidden; }
   #menu #lobby-card { flex: 0 1 auto; min-height: 0; width: auto; max-height: none; background: none; border: 0;
-                      border-radius: 0; padding: 2px; box-shadow: none; }
+                      border-radius: 0; padding: 2px; box-shadow: none; overflow-y: auto; }
   #menu #room-panel input { display: block; max-width: 440px; padding: 11px 14px; border-width: 2px; font-size: 16px; }
   #menu #room-panel label { display: block; font-weight: 700; }
   #menu #room-panel .head { margin-top: 16px; }
   #menu #room-panel .head h3 { margin: 0; }
-  #menu #create-room { font-size: 18px; font-weight: 900; font-style: italic; padding: 12px 28px; border-radius: 16px; }
-  #start-slot-friends { flex: none; margin-top: 12px; padding-top: 14px; border-top: 2px solid rgba(79, 134, 198, .45);
-                        text-align: center; }
-  #start-slot-friends:empty { display: none; }
+  #menu #create-room { font-size: 18px; font-weight: 800; padding: 12px 28px; }
   #menu #bindings-block { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; align-items: start; }
   #menu #bindings-block > :not(.group) { grid-column: 1 / -1; margin: 0; }
   #menu #bindings-block > .tall { grid-row: span 2; }
   #menu #volume-control, #menu #saves-panel h3 { display: none; }
   #saves-panel:not([hidden]) + #saves-wait { display: none; }
-  /* The strip along the bottom: what the selected choice does, and how far the game has loaded.
-     The game's own loading messages (#status) drive the bar; any other message shows as text. */
-  #menu-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px 24px;
-    min-height: 84px; box-sizing: border-box; padding: 12px clamp(16px, 4vw, 48px); background: #06112e;
-    border-top: 3px solid #4f86c6; }
-  #foot-desc { margin: 0; font-size: clamp(15px, 1.6vw, 18px); font-weight: 800; }
-  #foot-load { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0;
-               color: #b9d3f2; font-size: 13px; font-weight: 700; }
-  #load-bar { flex: none; width: 150px; height: 10px; border-radius: 999px; background: #1b3a75; overflow: hidden; }
-  #load-fill { display: block; width: 35%; height: 100%; border-radius: 999px; background: #ffd21f;
+  /* The strip along the bottom. On the disc screen: the drop hint and how far the game has
+     loaded. On the tiles: the curved bar with a bay for the loading line and the round buttons.
+     On a channel screen: a flat grey bar with Wii Menu and Start. The game's own loading messages
+     (#status) drive the bar; any other message shows as text. */
+  #menu-foot { position: relative; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px 24px;
+    min-height: 84px; box-sizing: border-box; padding: 12px clamp(16px, 4vw, 48px); }
+  #menu-foot .wave { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  #menu-foot .wave .fill { fill: var(--bar); }
+  #menu-foot .wave .line { fill: none; stroke: var(--bar-line); stroke-width: 4; }
+  #menu-foot > :not(.wave) { position: relative; z-index: 1; }
+  #menu-foot .wave.deep, #menu[data-view="menu"]:not([data-screen="open"]) #menu-foot .wave.shallow,
+  #menu[data-screen="open"] #menu-foot .wave { display: none; }
+  #menu[data-view="menu"]:not([data-screen="open"]) #menu-foot .wave.deep { display: block; }
+  #menu[data-view="menu"]:not([data-screen="open"]) #menu-foot { height: clamp(150px, 26vh, 210px); align-items: flex-end;
+                                                                 padding-bottom: 10px; }
+  #menu[data-screen="open"] #menu-foot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    background: var(--bar); border-top: 2px solid var(--line); min-height: 110px; }
+  #foot-desc { margin: 0; font-size: clamp(14px, 1.5vw, 17px); font-weight: 800; color: var(--text); }
+  #menu[data-view="menu"]:not([data-screen="open"]) #foot-desc { display: none; }
+  #menu[data-screen="open"] #foot-desc { font-size: 14px; font-weight: 700; color: var(--muted); }
+  #foot-tools { display: none; }
+  #menu[data-view="menu"]:not([data-screen="open"]) #foot-tools { display: flex; justify-content: space-between; align-items: flex-end;
+                                                                  width: 100%; }
+  .round { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; flex: none;
+    width: clamp(76px, 9vw, 104px); height: clamp(76px, 9vw, 104px); border-radius: 50%; background: var(--round);
+    border: 3px solid var(--round-line); color: var(--round-text); font: inherit; font-size: clamp(12px, 1.2vw, 14px); font-weight: 800;
+    cursor: pointer; box-shadow: var(--round-shadow); transition: transform .18s ease; }
+  .round:hover { transform: scale(1.06); }
+  .round svg { width: 40%; height: 40%; stroke-width: 1.8; color: var(--blue-text); }
+  #foot-screen { display: none; }
+  #menu[data-screen="open"] #foot-screen { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 4vw, 48px);
+                                          flex-wrap: wrap; }
+  #menu-back { font: inherit; font-size: clamp(18px, 2vw, 24px); font-weight: 800; padding: 12px 40px; border-radius: 999px;
+    border: 2px solid var(--ghost-line); background: var(--ghost-bg); color: var(--ghost-text); cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45); }
+  #start-slot-solo, #start-slot-friends { display: none; }
+  #menu[data-item="solo"] #start-slot-solo, #menu[data-item="friends"] #start-slot-friends:not(:empty) { display: block; }
+  #menu #start { font-size: clamp(20px, 2.2vw, 26px); padding: 12px 56px; border-radius: 999px; border-width: 2px;
+                 box-shadow: inset 0 2px 0 rgba(255, 255, 255, .7), 0 3px 0 #a88800, 0 4px 8px rgba(0, 0, 0, .2); }
+  #menu #start:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .7), 0 1px 0 #a88800; }
+  #foot-load { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; white-space: nowrap;
+               color: var(--muted); font-size: 13px; font-weight: 700; }
+  #menu[data-view="menu"]:not([data-screen="open"]) #foot-load { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); }
+  #load-bar { flex: none; width: 150px; height: 10px; border-radius: 999px; background: var(--bar-hi); border: 1px solid var(--line);
+              overflow: hidden; }
+  #load-fill { display: block; width: 35%; height: 100%; border-radius: 999px; background: var(--blue-deep);
                animation: load-slide 1.4s ease-in-out infinite; }
   #load-bar.known #load-fill { animation: none; transition: width .2s; }
   @keyframes load-slide { from { margin-left: -35%; } to { margin-left: 100%; } }
   #load-pct { min-width: 3ch; font-variant-numeric: tabular-nums; }
   #load-pct:empty { display: none; }
-  #load-done { color: #9df0bd; }
+  #load-done { color: var(--ok); }
   #menu #status, #menu:not(.loaded) #load-done, #menu.loaded #load-label, #menu.loaded #load-bar,
   #menu.loaded #load-pct, #foot-load.notice > :not(#status) { display: none; }
-  #menu #foot-load.notice #status { display: block; min-height: 0; max-width: 560px; padding: 0; color: #ffe08a;
-                                    text-align: right; }
+  #menu #foot-load.notice #status { display: block; min-height: 0; max-width: 560px; padding: 0; color: var(--text);
+                                    text-align: right; white-space: normal; }
   @media (prefers-reduced-motion: reduce) {
     #load-fill, #disc-panel[data-disc="reading"] #disc-art .disc { animation: none; }
+    #menu-nav button, .round { transition: none; }
   }
-  #problems-dialog { width: min(520px, calc(100% - 48px)); box-sizing: border-box; border: 3px solid #4f86c6;
-    border-radius: 24px; background: linear-gradient(#143373, #0d2255); box-shadow: 0 6px 0 #06112e; padding: 24px 28px; }
-  #problems-dialog::backdrop { background: #030a1ecc; }
-  #problems-dialog h2 { margin: 0 0 10px; font-size: 24px; font-weight: 900; font-style: italic; color: #fff; }
+  #problems-dialog { width: min(520px, calc(100% - 48px)); box-sizing: border-box; border: 2px solid var(--line);
+    border-radius: 24px; background: var(--panel); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); padding: 24px 28px; }
+  #problems-dialog::backdrop { background: #000a; }
+  #problems-dialog h2 { margin: 0 0 10px; font-size: 26px; font-weight: 600; color: var(--big); }
   #problems-dialog h3 { display: none; }
   #problems-dialog .note { font-size: 14px; }
   #problems-dialog form { margin: 18px 0 0; text-align: right; }
@@ -331,19 +395,18 @@
   @media (max-width: 760px) {
     #layout { flex-direction: column; }
     #controls { width: auto; max-height: 40%; margin: 0 12px 12px; }
-    /* The menu: its choices become a row of four above the panel, and the page scrolls. */
+    /* The menu: the two tiles stack, the round buttons shrink, and the page scrolls. */
     #menu-body { align-items: flex-start; }
-    #menu[data-view="menu"] #view-menu { grid-template-columns: minmax(0, 1fr); }
-    #menu-nav { flex-direction: row; flex-wrap: wrap; gap: 10px; }
-    #menu-nav button { flex: 1 1 calc(50% - 10px); min-height: 60px; gap: 10px; padding: 6px 12px; border-radius: 18px; }
-    #menu-nav .tile { width: 40px; height: 40px; border-radius: 12px; }
-    #menu-nav svg { width: 24px; height: 24px; }
-    #menu-nav small { display: none; }
-    #menu-panels > section { min-height: 0; max-height: none; }
+    #menu-nav { grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 10px; }
+    #menu-nav button { flex-direction: row; text-align: left; gap: 14px; padding: 12px 16px; border-radius: 20px; }
+    #menu-nav .logo { width: 88px; }
     #menu #disc-panel { flex-direction: column; text-align: center; }
     #menu .disc-actions { justify-content: center; }
     #menu #bindings-block { grid-template-columns: minmax(0, 1fr); }
-    #menu-foot { flex-direction: column; align-items: flex-start; }
+    #menu[data-view="disc"] #menu-foot { flex-direction: column; align-items: flex-start; }
+    #menu[data-view="menu"]:not([data-screen="open"]) #menu-foot { height: 130px; }
+    #menu[data-screen="open"] #menu-foot { grid-template-columns: 1fr; justify-items: center; gap: 8px; }
+    .round { width: 68px; height: 68px; font-size: 11px; }
     #foot-load { flex-wrap: wrap; justify-content: flex-start; }
     #foot-load.notice #status { text-align: left; }
   }
@@ -357,13 +420,37 @@
     <div id="overlay">
       <!-- The menu before the game starts (body.pregame). Its room, key, save and problem blocks
            move into the controls panel when the game starts. -->
-      <div id="menu" data-view="boot" data-item="solo">
+      <!-- Drawn here, nothing from the disc: a kart and a chequered flag for the two tiles. -->
+      <svg width="0" height="0" style="position: absolute" aria-hidden="true"><defs>
+        <symbol id="kart" viewBox="0 0 80 48"><rect x="52" y="8" width="7" height="14" rx="2.5" fill="currentColor"/><circle cx="42" cy="15" r="9" fill="currentColor"/><rect x="34" y="12.5" width="10" height="5" rx="2.5" fill="#fff"/><path d="M8 26h56a8 8 0 0 1 8 8v4H2v-4a8 8 0 0 1 6-8z" fill="currentColor"/><rect x="3" y="31" width="14" height="5" rx="2" fill="#fff" opacity=".45"/><rect x="20" y="22" width="22" height="5" rx="2.5" fill="currentColor"/><circle cx="20" cy="38" r="8" fill="#3b4a58"/><circle cx="20" cy="38" r="3.5" fill="#fff"/><circle cx="60" cy="38" r="8" fill="#3b4a58"/><circle cx="60" cy="38" r="3.5" fill="#fff"/></symbol>
+        <symbol id="flag" viewBox="0 0 44 52"><rect x="3" y="2" width="4" height="48" rx="2" fill="#3b4a58"/><path d="M7 4h34l-4 12 4 12H7z" fill="#fff" stroke="#3b4a58" stroke-width="2.5" stroke-linejoin="round"/><g fill="#3b4a58"><rect x="8" y="5" width="8" height="7"/><rect x="24" y="5" width="8" height="7"/><rect x="16" y="12" width="8" height="7"/><rect x="32" y="12" width="7" height="7"/><rect x="8" y="19" width="8" height="7"/><rect x="24" y="19" width="8" height="7"/></g></symbol>
+      </defs></svg>
+      <div id="menu" data-view="boot" data-item="solo" data-screen="">
         <header id="menu-head">
-          <h1>Mario Kart Wii <span>in your browser</span></h1>
+          <!-- The title as a wordmark drawn for this page: one thin rounded stroke, leaning forward. -->
+          <h1><svg id="wordmark" viewBox="0 0 458 72" role="img" aria-label="Mario Kart Wii">
+            <g transform="translate(10 0) skewX(-8)">
+              <g class="mk">
+                <path d="M6 60V12l20 30 20-30v48"/>
+                <circle cx="75" cy="44" r="16"/><path d="M91 28v32"/>
+                <path d="M104 60V28M104 42c0-9 6-14 16-13.5"/>
+                <path d="M130 30v30"/><circle class="dot" cx="130" cy="14" r="4.6"/>
+                <circle cx="159" cy="44" r="16"/>
+                <path d="M201 12v48M231 12l-28 28 29 20"/>
+                <circle cx="258" cy="44" r="16"/><path d="M274 28v32"/>
+                <path d="M287 60V28M287 42c0-9 6-14 16-13.5"/>
+                <path d="M322 15v35q0 10 10 10h3M312 28h21"/>
+              </g>
+              <g class="wii">
+                <path d="M362 12l12 48 12-36 12 36 12-48"/>
+                <path d="M423 30v30M436 30v30"/><circle class="dot" cx="423" cy="14" r="4.6"/><circle class="dot" cx="436" cy="14" r="4.6"/>
+              </g>
+            </g>
+          </svg><span>in your browser</span></h1>
           <div id="menu-tools">
             <span id="disc-chip" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="disc-chip-text"></span></span>
             <button type="button" id="change-disc" class="link" hidden>Change disc</button>
-            <button type="button" id="open-problems" class="link">Problems</button>
+            <button type="button" id="open-problems" class="link">Help</button>
           </div>
         </header>
         <div id="menu-body">
@@ -372,22 +459,22 @@
             <p id="disc-invite" hidden>You are joining a room. Choose your disc image to continue.</p>
             <section id="disc-panel" aria-label="Game disc" data-disc="none" hidden>
               <svg id="disc-art" viewBox="0 0 240 240" aria-hidden="true">
-                <g class="slot" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="120" cy="120" r="112" fill="#0b1f4f" stroke="#7fb6ec" stroke-width="3" stroke-dasharray="12 10"/>
-                  <circle cx="120" cy="120" r="44" stroke="#4f86c6" stroke-width="3"/>
-                  <circle cx="120" cy="120" r="14" fill="#143373" stroke="#7fb6ec" stroke-width="3"/>
-                  <path d="M120 60v38m0 0-14-14m14 14 14-14" stroke="#ffd21f" stroke-width="6"/>
+                <g class="slot">
+                  <circle class="ground" cx="120" cy="120" r="112" stroke-dasharray="12 10"/>
+                  <circle class="ring" cx="120" cy="120" r="44"/>
+                  <circle class="hub" cx="120" cy="120" r="14"/>
+                  <path class="arrow" d="M120 60v38m0 0-14-14m14 14 14-14"/>
                 </g>
-                <g class="disc" fill="none">
-                  <circle cx="120" cy="120" r="112" fill="#cfe6fb" stroke="#fff" stroke-width="4"/>
-                  <circle cx="120" cy="120" r="96" stroke="#fff" stroke-width="8" opacity=".7"/>
-                  <path d="M44 92A82 82 0 0 1 116 38" stroke="#fff" stroke-width="16" stroke-linecap="round"/>
-                  <circle cx="120" cy="120" r="44" fill="#eef4ff" stroke="#7fb6ec" stroke-width="3"/>
-                  <circle cx="120" cy="120" r="14" fill="#143373" stroke="#7fb6ec" stroke-width="3"/>
+                <g class="disc">
+                  <circle class="face" cx="120" cy="120" r="112"/>
+                  <circle class="groove" cx="120" cy="120" r="96"/>
+                  <path class="shine" d="M44 92A82 82 0 0 1 116 38"/>
+                  <circle class="inner" cx="120" cy="120" r="44"/>
+                  <circle class="hub" cx="120" cy="120" r="14"/>
                 </g>
-                <g class="badge" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="192" cy="192" r="30" fill="#157a43" stroke="#fff" stroke-width="5"/>
-                  <path d="M178 193l10 10 18-20" stroke="#fff" stroke-width="6"/>
+                <g class="badge">
+                  <circle cx="192" cy="192" r="30"/>
+                  <path d="M178 193l10 10 18-20"/>
                 </g>
               </svg>
               <div id="disc-main">
@@ -409,16 +496,19 @@
           </div>
           <div id="view-menu">
             <nav id="menu-nav" aria-label="Menu">
-              <button type="button" id="nav-solo" aria-current="true"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h12l-2.5 4 2.5 4H5"/></svg></span><span><b>Solo</b><small id="nav-solo-desc">Race on your own</small></span></button>
-              <button type="button" id="nav-friends" aria-current="false"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19"/><circle cx="10" cy="8" r="3.5"/><path d="M20 19v-1.5a3.5 3.5 0 0 0-2.5-3.35M15 4.7a3.5 3.5 0 0 1 0 6.6"/></svg></span><span><b>Play with friends</b><small id="nav-friends-desc">Create a room or enter an invite code</small></span></button>
-              <button type="button" id="nav-controls" aria-current="false"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></span><span><b>Controls</b><small>Keyboard, mouse or a controller</small></span></button>
-              <button type="button" id="nav-saves" aria-current="false"><span class="tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14"/></svg></span><span><b>Saves</b><small>Export, import and back up</small></span></button>
+              <button type="button" id="nav-solo" aria-current="true">
+                <svg class="logo" viewBox="0 0 120 70" aria-hidden="true"><use href="#flag" x="4" y="2" width="44" height="52"/><use href="#kart" x="36" y="22" width="80" height="48"/></svg>
+                <span><b>Play solo</b><small id="nav-solo-desc">Race on your own</small></span>
+              </button>
+              <button type="button" id="nav-friends" aria-current="false">
+                <svg class="logo" viewBox="0 0 120 70" aria-hidden="true"><use href="#kart" x="2" y="6" width="70" height="42" opacity=".5"/><use href="#kart" x="36" y="22" width="80" height="48"/></svg>
+                <span><b>Play with friends</b><small id="nav-friends-desc">Create a room or enter an invite code</small></span>
+              </button>
             </nav>
             <div id="menu-panels">
               <section id="panel-solo" aria-label="Solo">
                 <h2>Ready to race</h2>
                 <p class="note" id="solo-disc" hidden></p>
-                <div id="start-slot-solo"><button id="start" disabled>Loading…</button></div>
                 <p class="note">Racing friends instead? Open Play with friends before you start.</p>
               </section>
               <section id="panel-friends" aria-label="Play with friends">
@@ -451,7 +541,6 @@
                     <p class="note"><a href="https://github.com/mukulpatnaik/mkwii-webgpu/tree/main/tools/relay" target="_blank" rel="noopener noreferrer">Room server source</a></p>
                   </section>
                 </div>
-                <div id="start-slot-friends"></div>
                 <p class="note" id="room-reload-note"></p>
               </section>
               <section id="panel-controls" aria-label="Controls">
@@ -522,7 +611,19 @@
           </div>
         </div>
         <footer id="menu-foot">
+          <svg class="wave shallow" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true"><path class="fill" d="M0 40 C 230 40 330 10 600 10 C 870 10 970 40 1200 40 V 120 H 0 Z"/><path class="line" d="M0 40 C 230 40 330 10 600 10 C 870 10 970 40 1200 40" vector-effect="non-scaling-stroke"/></svg>
+          <svg class="wave deep" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true"><path class="fill" d="M0 62 C 230 62 330 132 600 132 C 870 132 970 62 1200 62 V 200 H 0 Z"/><path class="line" d="M0 62 C 230 62 330 132 600 132 C 870 132 970 62 1200 62" vector-effect="non-scaling-stroke"/></svg>
           <p id="foot-desc"></p>
+          <div id="foot-tools">
+            <button type="button" id="nav-saves" class="round" aria-current="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14"/></svg><span>Saves</span></button>
+            <button type="button" id="nav-controls" class="round" aria-current="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="2" width="7" height="20" rx="2.2"/><path d="M12 6.2v2.6M10.7 7.5h2.6"/><circle cx="12" cy="12.2" r="1.3"/><path d="M12 16h.01M12 19h.01"/></svg><span>Controls</span></button>
+            <button type="button" id="foot-help" class="round"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1.9-1.1 1.8M12 17h.01"/></svg><span>Help</span></button>
+          </div>
+          <div id="foot-screen">
+            <button type="button" id="menu-back">Wii Menu</button>
+            <div id="start-slot-solo"><button id="start" disabled>Loading…</button></div>
+            <div id="start-slot-friends"></div>
+          </div>
           <div id="foot-load">
             <span id="load-label">Loading the game</span>
             <div id="load-bar"><i id="load-fill"></i></div>
@@ -553,9 +654,9 @@
   </aside>
 </div>
 <dialog id="problems-dialog" aria-labelledby="problems-title">
-  <h2 id="problems-title">Problems</h2>
+  <h2 id="problems-title">Help</h2>
   <div id="problems-block">
-    <h3>Problems</h3>
+    <h3>Help</h3>
     <p class="note" id="save-log-help">Low FPS, stutter, a crash or a disconnect? Press Save log straight after it
       happens, then DM the file to <strong>hiemal</strong> on Discord with a few words about what you saw.</p>
     <button type="button" id="save-log" class="link">Save log</button>
@@ -683,12 +784,15 @@
   };
   // The page before the game starts (body.pregame in the stylesheet): which screen of the menu
   // shows. With a local disc image the disc screen comes first and stays until a disc image is
-  // accepted; a staged game folder goes straight to the four choices. A failure replaces the
-  // menu with its message, and Start closes it and hands its blocks to the controls panel.
+  // accepted; a staged game folder goes straight to the two tiles. A tile or a round button opens
+  // its channel screen (screenOpen); Wii Menu or Escape closes it. A room link opens on Play with
+  // friends. A failure replaces the menu with its message, and Start closes it and hands its
+  // blocks to the controls panel.
   const menu = document.getElementById('menu');
   const MENU_ITEMS = ['solo', 'friends', 'controls', 'saves'];
+  const MENU_TILES = ['solo', 'friends'];
   let menuItem = roomParam ? 'friends' : 'solo';
-  let menuOpen = true, discScreenOpen = false, discHandleKept = false, shownView = '';
+  let menuOpen = true, screenOpen = !!roomParam, discScreenOpen = false, discHandleKept = false, shownView = '';
   const discAccepted = () => !!discInfo && !discInfo.failed && !!discInfo.valid
     && !(buildGameId && discInfo.gameId !== buildGameId);
   const leaveMenu = (started) => {
@@ -717,6 +821,7 @@
     if (roomUrl) menuItem = 'friends';
     menu.dataset.view = view;
     menu.dataset.item = menuItem;
+    menu.dataset.screen = screenOpen ? 'open' : '';
     menu.classList.toggle('loaded', runtimeReady);
     // The disc screen: its picture, and which button is the one to press.
     const returning = !el('disc-reuse').hidden;
@@ -748,27 +853,43 @@
       : menuItem === 'saves' ? 'Your save stays in this browser unless you export it.'
       : roomUrl ? 'Share the invite link, then press Play online.'
       : 'Up to 12 players.' + (local ? ' Everyone plays from their own disc image.' : '');
-    if (view === 'menu' && shownView === 'disc') el('nav-' + menuItem).focus();
+    if (view === 'menu' && shownView === 'disc') el(screenOpen ? 'menu-back' : 'nav-' + menuItem).focus();
     shownView = view;
   };
+  const closeScreen = () => {
+    screenOpen = false;
+    updateView();
+    document.getElementById('nav-' + menuItem).focus();
+  };
   for (const item of MENU_ITEMS) {
-    document.getElementById('nav-' + item).addEventListener('click', () => { menuItem = item; updateView(); });
+    document.getElementById('nav-' + item).addEventListener('click', () => {
+      menuItem = item;
+      screenOpen = true;
+      updateView();
+      document.getElementById('menu-back').focus();
+    });
   }
+  document.getElementById('menu-back').addEventListener('click', closeScreen);
+  menu.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && screenOpen && !document.getElementById('problems-dialog').open) closeScreen();
+  });
+  // Arrow keys move between the two tiles.
   document.getElementById('menu-nav').addEventListener('keydown', (event) => {
     const step = ['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 0;
     if (!step) return;
-    const items = MENU_ITEMS.filter((item) => !document.getElementById('nav-' + item).disabled);
+    const tiles = MENU_TILES.filter((item) => !document.getElementById('nav-' + item).disabled);
     event.preventDefault();
-    menuItem = items[(Math.max(items.indexOf(menuItem), 0) + step + items.length) % items.length];
-    updateView();
-    document.getElementById('nav-' + menuItem).focus();
+    const current = tiles.indexOf(String(document.activeElement?.id || '').replace(/^nav-/, ''));
+    document.getElementById('nav-' + tiles[(Math.max(current, 0) + step + tiles.length) % tiles.length]).focus();
   });
   document.getElementById('change-disc').addEventListener('click', () => { discScreenOpen = true; updateView(); });
   document.getElementById('disc-back').addEventListener('click', () => { discScreenOpen = false; updateView(); });
-  document.getElementById('open-problems').addEventListener('click', () => {
+  const openHelp = () => {
     const problems = document.getElementById('problems-dialog');
     if (typeof problems.showModal === 'function') problems.showModal(); else problems.setAttribute('open', '');
-  });
+  };
+  document.getElementById('open-problems').addEventListener('click', openHelp);
+  document.getElementById('foot-help').addEventListener('click', openHelp);
   // The game's loading messages land in #status. In the menu they drive the bar in the bottom
   // strip; any other message there (the game is open in another tab) shows as text instead.
   const syncLoadStatus = () => {
