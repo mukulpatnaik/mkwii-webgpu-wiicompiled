@@ -114,7 +114,7 @@ function setupRoomPage(search = '?room=abcdef', navigatorOverride = { gpu: worki
     'room-game-status', 'cancel-room-launch', 'lobby-card', 'room-setup', 'room-invite',
     'invite-link', 'join-room', 'create-room', 'copy-invite', 'leave-room', 'status', 'start',
     'reload', 'overlay', 'controls', 'stage', 'dock', 'dock-toggle', 'dock-controls', 'dock-saves', 'dock-room', 'dock-help',
-    'dock-room-count', 'fullscreen-toggle',
+    'dock-room-count', 'fullscreen-toggle', 'pad-art', 'pad-name', 'device-keyboard', 'device-pad',
     'canvas', 'volume',
     'volume-value', 'toggle-mute', 'keyboard-off', 'binding-help', 'room-code',
     'hint', 'diag', 'diag-text', 'diag-copy', 'game-runtime', 'save-status', 'save-log', 'diag-save-log', 'detailed-log',
@@ -1137,6 +1137,88 @@ test('in a room the pill has a room item that carries the head count', async () 
   context.window.mkwSetRoomPlayers(JSON.stringify({ players: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] }), 1);
   assert.equal(elements.get('room-count').textContent, '2 / 12');
   assert.equal(elements.get('dock-room-count').textContent, '2 / 12');
+});
+
+// The Controls card draws the game's controller with a row per input, for the keyboard or for the
+// pad on port 1 (a tab each).
+test('the controller drawing lights the part a row is about, and pad buttons take the pad\'s own names', async () => {
+  const { context } = setupRoomPage('');
+  await settle();
+  const part = (input, pad) => vm.runInContext(`padPart(${JSON.stringify(input)}, ${JSON.stringify(pad)})`, context);
+  const name = (input, pad) => vm.runInContext(`padButtonName(${JSON.stringify(input)}, ${JSON.stringify(pad)})`, context);
+  // With no pad the drawing shows where each game button is on a Switch pad.
+  assert.equal(part('a', null), 'east');
+  assert.equal(part('b', null), 'south');
+  assert.equal(part('z', null), 'right_shoulder');
+  assert.equal(part('l', null), 'left_trigger');
+  assert.equal(part('r', null), 'right_trigger');
+  assert.equal(part('start', null), 'start');
+  assert.equal(part('axis0', null), 'left_stick');
+  assert.equal(part('axis6', null), 'right_stick');
+  assert.equal(part('axis8', null), 'left_trigger');
+  assert.equal(part('mute', null), '');
+  // With one, where the runtime says it is: an Xbox pad keeps A at the bottom.
+  assert.equal(part('a', { family: 'xbox', buttons: { a: 'south', right: 'left_stick_left' } }), 'south');
+  assert.equal(part('right', { family: 'xbox', buttons: { a: 'south', right: 'left_stick_left' } }), 'left_stick');
+  assert.equal(part('b', { family: 'xbox', buttons: { b: 'disabled' } }), '');
+  // A Switch pad in Nintendo's printed layout: the game's A on its A, L and R on ZL and ZR.
+  const switchPad = { name: 'Switch Pro Controller', family: 'nintendo', buttons: {
+    a: 'east', b: 'south', x: 'north', y: 'west', start: 'start', z: 'right_shoulder', l: 'unmapped', r: 'unmapped',
+    up: 'dpad_up', down: 'dpad_down', left: 'dpad_left', right: 'left_stick_left' } };
+  assert.equal(name('a', switchPad), 'A');
+  assert.equal(name('b', switchPad), 'B');
+  assert.equal(name('z', switchPad), 'R');
+  assert.equal(name('l', switchPad), 'ZL');
+  assert.equal(name('r', switchPad), 'ZR');
+  assert.equal(name('up', switchPad), 'D-pad ↑');
+  assert.equal(name('right', switchPad), 'Left stick ←');
+  assert.equal(name('a', { ...switchPad, family: 'xbox' }), 'B', 'the same position reads B on an Xbox pad');
+  assert.equal(name('a', { ...switchPad, family: 'playstation' }), '○');
+  assert.equal(name('a', { ...switchPad, family: 'somethingelse' }), 'Right');
+  assert.equal(name('a', { ...switchPad, buttons: { a: 'disabled' } }), '');
+  assert.equal(name('a', null), '');
+});
+
+test('a pad on port 1 gets a tab on the Controls card, and the card stays out of the way of the F10 bar', async () => {
+  const { context, elements } = setupRoomPage('');
+  await settle();
+  context.Module._mkw_web_rebind = () => {};
+  const block = elements.get('bindings-block'), padTab = elements.get('device-pad'), keyTab = elements.get('device-keyboard');
+  padTab.hidden = true;  // as in the markup
+  const send = (extra) => context.window.mkwSetBindings(JSON.stringify({
+    mute: '\\', keyboard: true, buttons: { a: 'X' }, axes: { 0: 'Right' }, volume: 100, muted: false,
+    requests: { mute: 200, a: 1, axis0: 100 }, editing: false, target: '', settings: false, pad: null, ...extra }));
+  const switchPad = { name: 'Switch Pro Controller', family: 'nintendo', buttons: { a: 'east' } };
+  send({});
+  assert.equal(padTab.hidden, true);
+  assert.match(elements.get('pad-name').textContent, /^No controller yet/);
+  assert.equal(elements.get('stage').classList.contains('settings-open'), false);
+  // The pad takes the rows when it appears.
+  send({ settings: true, pad: switchPad });
+  assert.equal(padTab.hidden, false);
+  assert.equal(padTab.textContent, 'Switch Pro Controller');
+  assert.equal(block.dataset.device, 'pad');
+  assert.equal(padTab.attributes.get('aria-pressed'), 'true');
+  assert.equal(elements.get('pad-name').textContent, 'Both drive player 1.');
+  assert.equal(elements.get('stage').classList.contains('settings-open'), true);
+  // The player's own choice of tab sticks while the pad stays.
+  keyTab.dispatch('click');
+  assert.equal(block.dataset.device, 'keyboard');
+  send({ keyboard: false, pad: switchPad });
+  assert.equal(block.dataset.device, 'keyboard');
+  assert.equal(elements.get('pad-name').textContent, 'The keyboard is off for player 1.');
+  assert.equal(elements.get('stage').classList.contains('settings-open'), false);
+  // Without the pad the rows are the keyboard's again.
+  padTab.dispatch('click');
+  assert.equal(block.dataset.device, 'pad');
+  send({});
+  assert.equal(padTab.hidden, true);
+  assert.equal(block.dataset.device, 'keyboard');
+  // A page rebind of a pad button asks for the controller, not a key.
+  send({ editing: true, target: 'pad_a', pad: switchPad });
+  assert.match(elements.get('binding-help').textContent, /^Press a button on the controller/);
+  send({ editing: true, target: 'a' });
+  assert.match(elements.get('binding-help').textContent, /^Press a key or click a mouse button/);
 });
 
 test('a failure before Start replaces the menu with its message', async () => {

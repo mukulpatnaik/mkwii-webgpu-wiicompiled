@@ -658,6 +658,67 @@ constexpr KeyboardPreset kWasdPreset = {
     },
 };
 
+#if defined(__EMSCRIPTEN__)
+// How the page should draw and name the pad on a port: the browser's own name ends in
+// "(STANDARD GAMEPAD Vendor: 057e Product: 2009)", and SDL names few pads from those numbers.
+const char* WebPadFamily(SDL_Gamepad* pad) {
+    switch (SDL_GetGamepadType(pad)) {
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+        return "nintendo";
+    case SDL_GAMEPAD_TYPE_PS3:
+    case SDL_GAMEPAD_TYPE_PS4:
+    case SDL_GAMEPAD_TYPE_PS5:
+        return "playstation";
+    case SDL_GAMEPAD_TYPE_XBOX360:
+    case SDL_GAMEPAD_TYPE_XBOXONE:
+        return "xbox";
+    case SDL_GAMEPAD_TYPE_GAMECUBE:
+        return "gamecube";
+    default:
+        return "generic";
+    }
+}
+
+std::string WebPadName(SDL_Gamepad* pad) {
+    switch (SDL_GetGamepadType(pad)) {
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+        return SDL_GetGamepadProduct(pad) == 0x2073 ? "GameCube Controller (Switch Online)" : "Switch Pro Controller";
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT: return "Joy-Con (L)";
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT: return "Joy-Con (R)";
+    case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: return "Joy-Con (L+R)";
+    default: break;
+    }
+    const char* raw = SDL_GetGamepadName(pad);
+    std::string name = raw != nullptr ? raw : "";
+    // Drop the browser's parenthesis: "(STANDARD GAMEPAD Vendor: ...)", "(Vendor: ... Product: ...)".
+    const size_t paren = name.find(" (");
+    if (paren != std::string::npos &&
+        (name.find("Vendor:", paren) != std::string::npos || name.find("GAMEPAD", paren) != std::string::npos)) {
+        name.erase(paren);
+    }
+    if (name.empty() || name == "*" || name == "Controller") {
+        switch (SDL_GetGamepadType(pad)) {
+        case SDL_GAMEPAD_TYPE_PS3: return "PlayStation 3 Controller";
+        case SDL_GAMEPAD_TYPE_PS4: return "PlayStation 4 Controller";
+        case SDL_GAMEPAD_TYPE_PS5: return "DualSense Controller";
+        case SDL_GAMEPAD_TYPE_XBOX360: return "Xbox 360 Controller";
+        case SDL_GAMEPAD_TYPE_XBOXONE: return "Xbox Controller";
+        case SDL_GAMEPAD_TYPE_GAMECUBE: return "GameCube Controller";
+        default: return "Controller";
+        }
+    }
+    return name;
+}
+
+SDL_Gamepad* WebPadForPort(uint32_t port) {
+    const int index = PADGetIndexForPort(port);
+    return index >= 0 ? PADGetSDLGamepadForIndex(static_cast<uint32_t>(index)) : nullptr;
+}
+#endif
+
 void ApplyKeyboardPreset(uint32_t port, const KeyboardPreset& preset) {
     for (size_t i = 0; i < preset.keys.size(); ++i)
         PADSetKeyButtonBinding(port, {preset.keys[i], kControllerButtons[i].padButton});
@@ -836,6 +897,13 @@ void DrawControllerSettings() {
 #endif
     ImGui::Separator();
     const char* currentName = PADGetName(selectedGamePort);
+#if defined(__EMSCRIPTEN__)
+    std::string webName;
+    if (SDL_Gamepad* webPad = WebPadForPort(selectedGamePort)) {
+        webName = WebPadName(webPad);
+        currentName = webName.c_str();
+    }
+#endif
     ImGui::Text("Assigned: %s", currentName != nullptr ? currentName : "None");
     if (ImGui::MenuItem("Unassign controller")) {
         PADClearPort(selectedGamePort);
@@ -1487,6 +1555,13 @@ void ProcessWebControls() {
         if (PADGetKeyButtonBindings(0, &count) == nullptr) return;
         const auto& button = kControllerButtons[request - 1];
         BeginRebind(RebindKind::KeyboardButton, button.padButton, button.label);
+    } else if (request > 300 && request <= 300 + kControllerButtons.size()) {
+        // A button of the pad on port 1. BeginRebind samples the pad of the port F10 has selected.
+        if (WebPadForPort(0) == nullptr) return;
+        const auto& button = kControllerButtons[request - 301];
+        const int selectedPort = std::exchange(g_controllerPort, 0);
+        BeginRebind(RebindKind::Controller, button.padButton, button.label);
+        g_controllerPort = selectedPort;
     } else {
         return;
     }
@@ -1495,9 +1570,14 @@ void ProcessWebControls() {
     g_topBarVisible = false;
 }
 
-// Tells the page's controls panel (window.mkwSetBindings in shell.html) which keys port 0 uses,
+// Tells the page's controls card (window.mkwSetBindings in shell.html) which keys port 0 uses,
 // so it follows remapping in F10. Sent only when something changed; "keyboard":false when the
 // port has no keyboard. Button keys follow kControllerButtons, axes use their PAD_AXIS_* index.
+// "pad" describes the controller on port 0, or is null: its name, its family (which letters its
+// face buttons carry) and the host button behind each game button, by NativeButtonItem config
+// name ("unmapped" for L and R means the analog trigger). "requests" carries a pad_<button> code
+// for each. "target" names what a page rebind is waiting for ("a", "axis0", "pad_a", "mute"),
+// and "settings" says the F10 bar is open, so the page can keep its own button out of the way.
 void PublishWebBindings() {
     static std::string published;
     const auto quoted = [](const char* text) {
@@ -1537,8 +1617,39 @@ void PublishWebBindings() {
     }
     json += ",\"volume\":" + std::to_string(g_audioVolumePercent) +
             ",\"muted\":" + (g_audioMuted ? "true" : "false");
-    json += ",\"requests\":" + requests + "},\"editing\":" +
-            (g_webRebindPrompt && g_rebind.active ? "true" : "false") + '}';
+    if (SDL_Gamepad* pad = WebPadForPort(0)) {
+        json += ",\"pad\":{\"name\":" + quoted(WebPadName(pad).c_str()) + ",\"family\":" + quoted(WebPadFamily(pad)) +
+                ",\"buttons\":{";
+        uint32_t mappingCount = 0;
+        const PADButtonMapping* mappings = PADGetButtonMappings(0, &mappingCount);
+        for (size_t i = 0; i < kControllerButtons.size(); ++i) {
+            const char* native = "unmapped";
+            for (uint32_t m = 0; mappings != nullptr && m < mappingCount; ++m) {
+                if (mappings[m].padButton == kControllerButtons[i].padButton) {
+                    native = NativeButtonForValue(mappings[m].nativeButton).configName;
+                }
+            }
+            if (i != 0) json += ',';
+            json += quoted(kControllerButtons[i].configKey) + ':' + quoted(native);
+            requests += ",\"pad_" + std::string(kControllerButtons[i].configKey) + "\":" + std::to_string(301 + i);
+        }
+        json += "}}";
+    } else {
+        json += ",\"pad\":null";
+    }
+    const bool editing = g_webRebindPrompt && g_rebind.active;
+    std::string target;
+    if (editing) {
+        const auto button = std::find_if(kControllerButtons.begin(), kControllerButtons.end(),
+                                         [&](const auto& item) { return item.padButton == g_rebind.target; });
+        const std::string key = button != kControllerButtons.end() ? button->configKey : "";
+        target = g_rebind.kind == RebindKind::MuteHotkey ? "mute"
+            : g_rebind.kind == RebindKind::KeyboardAxis ? "axis" + std::to_string(g_rebind.target)
+            : g_rebind.kind == RebindKind::Controller ? "pad_" + key : key;
+    }
+    json += ",\"settings\":" + std::string(g_topBarVisible ? "true" : "false");
+    json += ",\"requests\":" + requests + "},\"editing\":" + (editing ? "true" : "false") +
+            ",\"target\":" + quoted(target.c_str()) + '}';
     if (json == published) return;
     published = json;
     MAIN_THREAD_EM_ASM({

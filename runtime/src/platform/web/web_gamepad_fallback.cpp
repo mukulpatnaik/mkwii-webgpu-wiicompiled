@@ -143,6 +143,9 @@ void Apply() {
         SDL_GetJoystickGUIDInfo(guid, &vendor, &product, nullptr, nullptr);
         SDL_Joystick* joystick = SDL_GetJoystickFromID(id);
         if (vendor == 0 || product == 0 || joystick == nullptr) continue;
+        // A pad the browser reports in its standard layout already fits the generic mapping (SDL's
+        // web backend gives it a hat for the D-pad); a Linux mapping is for the device's own order.
+        if (SDL_GetNumJoystickHats(joystick) > 0) continue;
         const int axes = SDL_GetNumJoystickAxes(joystick);
         const int buttons = SDL_GetNumJoystickButtons(joystick);
 

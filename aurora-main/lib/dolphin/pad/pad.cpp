@@ -153,6 +153,26 @@ std::array<PADButtonMapping, PAD_BUTTON_COUNT> g_defaultButtonsProCon{{
     {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, PAD_BUTTON_RIGHT},
 }};
 
+#if defined(__EMSCRIPTEN__)
+// In a browser a Switch Pro Controller or a pair of Joy-Cons takes Nintendo's printed layout, as
+// the Wii U Pro Controller below does: A on the right accelerates, B at the bottom brakes, X is
+// at the top and Y on the left. (Natively these pads keep the positional table above.)
+std::array<PADButtonMapping, PAD_BUTTON_COUNT> g_defaultButtonsSwitchPrinted{{
+    {SDL_GAMEPAD_BUTTON_EAST, PAD_BUTTON_A},
+    {SDL_GAMEPAD_BUTTON_SOUTH, PAD_BUTTON_B},
+    {SDL_GAMEPAD_BUTTON_NORTH, PAD_BUTTON_X},
+    {SDL_GAMEPAD_BUTTON_WEST, PAD_BUTTON_Y},
+    {SDL_GAMEPAD_BUTTON_START, PAD_BUTTON_START},
+    {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, PAD_TRIGGER_Z},
+    {PAD_NATIVE_BUTTON_INVALID, PAD_TRIGGER_L},
+    {PAD_NATIVE_BUTTON_INVALID, PAD_TRIGGER_R},
+    {SDL_GAMEPAD_BUTTON_DPAD_UP, PAD_BUTTON_UP},
+    {SDL_GAMEPAD_BUTTON_DPAD_DOWN, PAD_BUTTON_DOWN},
+    {SDL_GAMEPAD_BUTTON_DPAD_LEFT, PAD_BUTTON_LEFT},
+    {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, PAD_BUTTON_RIGHT},
+}};
+#endif
+
 std::array<PADButtonMapping, PAD_BUTTON_COUNT> g_defaultButtonsJoyConRight{{
     {SDL_GAMEPAD_BUTTON_SOUTH, PAD_BUTTON_A},
     {SDL_GAMEPAD_BUTTON_EAST, PAD_BUTTON_B},
@@ -496,9 +516,18 @@ void __PADSetDefaultMapping(aurora::input::GameController* controller) /*  NOLIN
     if (controller->m_pid == 0x2073) {
       controller->m_buttonMapping = g_defaultButtonsNSOGamecube;
     } else {
+#if defined(__EMSCRIPTEN__)
+      controller->m_buttonMapping = g_defaultButtonsSwitchPrinted;
+#else
       controller->m_buttonMapping = g_defaultButtonsProCon;
+#endif
     }
     break;
+#if defined(__EMSCRIPTEN__)
+  case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+    controller->m_buttonMapping = g_defaultButtonsSwitchPrinted;
+    break;
+#endif
   case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
     controller->m_buttonMapping = g_defaultButtonsJoyConRight;
     break;

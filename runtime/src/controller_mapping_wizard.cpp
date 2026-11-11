@@ -256,11 +256,16 @@ std::vector<SetupCandidate> CollectCandidates() {
         const std::string mappingStr = mapping;
         SDL_free(mapping);
 #if defined(__EMSCRIPTEN__)
-        // A browser pad without Chrome's standard layout matches SDL's generic web mapping (named
-        // "*"), which rarely fits it; offer setup for those too.
+        // SDL gives every browser pad its generic web mapping (named "*"). It is written for the
+        // browser's standard layout, which SDL's web backend marks by turning the four D-pad
+        // buttons into a hat; a pad without that hat arrives in its own button order, where the
+        // mapping rarely fits, so only those are offered setup.
         const size_t nameStart = mappingStr.find(',');
         if (nameStart != std::string::npos && mappingStr.compare(nameStart + 1, 2, "*,") == 0) {
-            candidates.push_back({id, name, true, true});
+            SDL_Joystick* webJoystick = SDL_GetGamepadJoystick(gamepad);
+            if (webJoystick == nullptr || SDL_GetNumJoystickHats(webJoystick) == 0) {
+                candidates.push_back({id, name, true, true});
+            }
             continue;
         }
 #endif

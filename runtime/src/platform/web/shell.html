@@ -136,6 +136,48 @@
   #controls[data-card="room"] > #room-panel { display: block; }
   #controls > :first-child > h3:first-child, #controls #bindings-block > .note:first-of-type { margin-top: 0; }
   #controls #room-panel { border: 0; padding: 0; margin: 0; }
+  /* While the game's own settings bar (F10) is open, the corner button and its card stay out of
+     its way: the bar's close mark sits in the same corner. */
+  #stage.settings-open #dock, #stage.settings-open #controls { visibility: hidden; }
+  /* The Controls card, laid out like an emulator's input settings: the game's controller drawn
+     in the middle (the game reads a GameCube controller, whatever is plugged in), its buttons in
+     groups on either side, and one binding per row for the device chosen above: a key for the
+     keyboard, a button for the controller on port 1. The row under the pointer lights its part
+     of the drawing, and the part being rebound pulses. */
+  #device-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+  #device-tabs button { font: inherit; font-size: 13px; font-weight: 800; padding: 6px 14px; border-radius: 999px; cursor: pointer;
+                        border: 1px solid var(--ghost-line); background: var(--ghost-bg); color: var(--ghost-text); }
+  #device-tabs button[aria-pressed="true"] { background: var(--primary-bg); color: var(--primary-text); border-color: var(--primary-line); }
+  #device-tabs button[hidden] { display: none; }
+  #pad-name { margin: 0; flex: 1; min-width: 180px; }
+  #bind-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 290px) minmax(0, 1fr); gap: 10px 14px;
+                 align-items: start; margin-top: 10px; }
+  .bind-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  #bind-layout .group { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 9px; }
+  #bind-layout .group h3 { margin: 0 0 5px; text-align: center; }
+  .bind-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 28px; }
+  .bind-row .gc { min-width: 1.5em; font-weight: 800; color: var(--text); }
+  .bind-row .act { color: var(--muted); font-size: 12.5px; line-height: 1.25; }
+  .bind-row .cells { display: flex; gap: 4px; justify-content: flex-end; }
+  .bind-row .static { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  #bindings-block[data-device="keyboard"] .for-pad, #bindings-block[data-device="pad"] .for-keyboard { display: none; }
+  #bind-art { display: flex; flex-direction: column; align-items: stretch; gap: 8px; min-width: 0; }
+  #pad-art { width: 100%; height: auto; overflow: visible; }
+  /* Dark like the pad it copies, on either skin. */
+  #pad-art .grip { fill: #34383e; }
+  #pad-art .face { fill: #1d2024; }
+  #pad-art .extra, #pad-art .hub { fill: #565d66; }
+  #pad-art [data-part] > * { fill: #565d66; transition: fill .15s ease; }
+  #pad-art [data-part] > .ring { fill: #2a2e33; stroke: #e3e7eb; stroke-width: 2; }
+  #pad-art [data-part="left_trigger"] > * { fill: #24272b; }
+  #pad-art [data-part="right_trigger"] > * { fill: #24272b; }
+  #pad-art [data-part="left_shoulder"] > *, #pad-art [data-part="right_shoulder"] > * { fill: #3d4248; }
+  #pad-art [data-part].on > :not(.ring) { fill: var(--blue-deep); filter: drop-shadow(0 0 6px var(--blue-deep)); }
+  #pad-art.editing [data-part].on > :not(.ring) { animation: pad-pulse .9s ease-in-out infinite; }
+  @keyframes pad-pulse { 50% { filter: drop-shadow(0 0 14px var(--blue-deep)); } }
+  #pad-caption { margin: 0; text-align: center; font-size: 11.5px; }
+  /* The card is wide enough for the three columns while it shows the controls. */
+  #controls[data-card="controls"] { width: min(900px, calc(100% - 28px)); }
   #controls #saves-panel h3 { margin-top: 0; }
   #controls h2 { font-size: 15px; font-weight: 800; margin: 0; }
   #controls h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
@@ -357,9 +399,8 @@
   #menu #room-panel .head { margin-top: 16px; }
   #menu #room-panel .head h3 { margin: 0; }
   #menu #create-room { font-size: 18px; font-weight: 800; padding: 12px 28px; }
-  #menu #bindings-block { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; align-items: start; }
-  #menu #bindings-block > :not(.group) { grid-column: 1 / -1; margin: 0; }
-  #menu #bindings-block > .tall { grid-row: span 2; }
+  #menu #bind-layout { grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) minmax(0, 1fr); gap: 12px 22px; }
+  #menu .bind-row .act { font-size: 14px; }
   #menu #saves-panel h3 { display: none; }
   #saves-panel:not([hidden]) + #saves-wait { display: none; }
   /* The strip along the bottom. On the disc screen: the drop hint and how far the game has
@@ -421,6 +462,7 @@
   @media (prefers-reduced-motion: reduce) {
     #load-fill, #disc-panel[data-disc="reading"] #disc-art .disc { animation: none; }
     #menu-nav button, .round, #dock, #dock-items, #dock-toggle svg { transition: none; }
+    #pad-art.editing [data-part].on > :not(.ring) { animation: none; }
     #controls { animation: none; }
   }
   #problems-dialog { width: min(520px, calc(100% - 48px)); box-sizing: border-box; border: 2px solid var(--line);
@@ -441,7 +483,9 @@
     #menu-nav .logo { width: 88px; }
     #menu #disc-panel { flex-direction: column; text-align: center; }
     #menu .disc-actions { justify-content: center; }
-    #menu #bindings-block { grid-template-columns: minmax(0, 1fr); }
+    #bind-layout, #menu #bind-layout { grid-template-columns: minmax(0, 1fr); }
+    #bind-art { order: -1; }
+    #pad-art { max-width: 260px; align-self: center; }
     #menu[data-view="disc"] #menu-foot { flex-direction: column; align-items: flex-start; }
     #menu[data-view="menu"]:not([data-screen="open"]) #menu-foot { height: 130px; }
     #menu[data-screen="open"] #menu-foot { grid-template-columns: 1fr; justify-items: center; gap: 8px; }
@@ -607,41 +651,83 @@
               </section>
               <section id="panel-controls" aria-label="Controls">
                 <h2>Controls</h2>
-                <div id="bindings-block">
+                <div id="bindings-block" data-device="keyboard">
+                  <div id="device-tabs" role="group" aria-label="Device to set up">
+                    <button type="button" id="device-keyboard" aria-pressed="true">Keyboard</button>
+                    <button type="button" id="device-pad" aria-pressed="false" hidden>Controller</button>
+                    <span class="note" id="pad-name" role="status">A game controller works too: press a button on it once the game is running.</span>
+                  </div>
                   <p id="save-status" class="note" role="status" hidden></p>
                   <p class="note" id="binding-help" role="status">Start the game, then click a key to change it.</p>
-                  <div class="group tall">
-                    <h3>Driving</h3>
-                    <dl>
-                      <dt><button type="button" class="binding" data-bind="axis1" disabled>←</button><button type="button" class="binding" data-bind="axis0" disabled>→</button></dt><dd>Steer</dd>
-                      <dt><button type="button" class="binding" data-bind="a" disabled>X</button></dt><dd>Accelerate</dd>
-                      <dt><button type="button" class="binding" data-bind="b" disabled>Z</button></dt><dd>Brake / reverse</dd>
-                      <dt><button type="button" class="binding" data-bind="r" disabled>Shift</button></dt><dd>Drift, hop</dd>
-                      <dt><button type="button" class="binding" data-bind="up" disabled>W</button></dt><dd>Trick (in the air, as you leave a ramp)</dd>
-                      <dt><button type="button" class="binding" data-bind="l" disabled>Space</button></dt><dd>Use item</dd>
-                      <dt><button type="button" class="binding" data-bind="axis2" disabled>↑</button><button type="button" class="binding" data-bind="axis3" disabled>↓</button></dt><dd>Aim item forward / back</dd>
-                      <dt><button type="button" class="binding" data-bind="start" disabled>Enter</button></dt><dd>Pause</dd>
-                    </dl>
-                  </div>
-                  <div class="group">
-                    <h3>Menus</h3>
-                    <dl>
-                      <dt><button type="button" class="binding" data-bind="axis2" disabled>↑</button><button type="button" class="binding" data-bind="axis1" disabled>←</button><button type="button" class="binding" data-bind="axis3" disabled>↓</button><button type="button" class="binding" data-bind="axis0" disabled>→</button></dt><dd>Move</dd>
-                      <dt><button type="button" class="binding" data-bind="a" disabled>X</button></dt><dd>Confirm (A)</dd>
-                      <dt><button type="button" class="binding" data-bind="b" disabled>Z</button></dt><dd>Back (B)</dd>
-                      <dt><button type="button" class="binding" data-bind="up" disabled>W</button><button type="button" class="binding" data-bind="left" disabled>A</button><button type="button" class="binding" data-bind="down" disabled>S</button><button type="button" class="binding" data-bind="right" disabled>D</button></dt><dd>D-pad</dd>
-                    </dl>
-                  </div>
-                  <div class="group">
-                    <h3>Game</h3>
-                    <dl>
-                      <dt><kbd>F10</kbd></dt><dd>Settings and key bindings</dd>
-                      <dt><button type="button" class="binding" data-bind="mute" disabled>\</button></dt><dd>Mute / unmute</dd>
-                    </dl>
+                  <div id="bind-layout">
+                    <div class="bind-col">
+                      <div class="group"><h3>L trigger</h3>
+                        <div class="bind-row"><span class="gc">L</span><span class="act">Use item</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="l" disabled>Space</button><button type="button" class="binding for-pad" data-pad="l" disabled>—</button></span></div>
+                      </div>
+                      <div class="group"><h3>Control stick</h3>
+                        <div class="bind-row"><span class="gc"></span><span class="act">Steer</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="axis1" disabled>←</button><button type="button" class="binding for-keyboard" data-bind="axis0" disabled>→</button><span class="static for-pad">Left stick</span></span></div>
+                        <div class="bind-row"><span class="gc"></span><span class="act">Aim item forward / back; move in menus</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="axis2" disabled>↑</button><button type="button" class="binding for-keyboard" data-bind="axis3" disabled>↓</button><span class="static for-pad">Left stick</span></span></div>
+                      </div>
+                      <div class="group"><h3>D-pad</h3>
+                        <div class="bind-row"><span class="gc">Up</span><span class="act">Trick, wheelie</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="up" disabled>W</button><button type="button" class="binding for-pad" data-pad="up" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">Down</span><span class="act">Trick</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="down" disabled>S</button><button type="button" class="binding for-pad" data-pad="down" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">Left</span><span class="act">Trick</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="left" disabled>A</button><button type="button" class="binding for-pad" data-pad="left" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">Right</span><span class="act">Trick</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="right" disabled>D</button><button type="button" class="binding for-pad" data-pad="right" disabled>—</button></span></div>
+                      </div>
+                    </div>
+                    <div id="bind-art">
+                      <!-- A controller in the usual modern shape, drawn here. Parts are named like the
+                           runtime's host buttons (south, east, left_trigger, ...) and carry no letters:
+                           a row lights the part its game button is on. -->
+                      <svg id="pad-art" viewBox="0 0 360 250" role="img" aria-label="Controller">
+                        <g data-part="left_trigger"><path d="M52 30C52 12 66 4 88 4c20 0 34 8 36 22z"/></g>
+                        <g data-part="right_trigger"><path d="M308 30c0-18-14-26-36-26-20 0-34 8-36 22z"/></g>
+                        <g data-part="left_shoulder"><path d="M40 40c2-16 20-26 46-26 24 0 42 6 50 14z"/></g>
+                        <g data-part="right_shoulder"><path d="M320 40c-2-16-20-26-46-26-24 0-42 6-50 14z"/></g>
+                        <path class="grip" d="M60 24c20-8 56-8 76 0h88c20-8 56-8 76 0 22 8 34 30 40 62 10 46 12 104 2 136-6 22-34 24-46 4-12-22-28-50-44-56H108c-16 6-32 34-44 56-12 20-40 18-46-4C8 190 10 132 20 86c6-32 18-54 40-62z"/>
+                        <path class="face" d="M60 24c20-8 56-8 76 0h88c20-8 56-8 76 0 20 8 32 28 38 58l-20 70c-5 12-16 18-28 18H70c-12 0-23-6-28-18L22 82c6-30 18-50 38-58z"/>
+                        <g data-part="back"><circle cx="128" cy="50" r="7.5"/></g>
+                        <g data-part="start"><circle cx="216" cy="50" r="7.5"/></g>
+                        <rect class="extra" x="140" y="71" width="13" height="13" rx="2.5"/>
+                        <g data-part="guide"><circle cx="200" cy="78" r="7.5"/></g>
+                        <g data-part="left_stick"><circle class="ring" cx="74" cy="78" r="17"/><circle cx="74" cy="78" r="13.5"/></g>
+                        <g data-part="right_stick"><circle class="ring" cx="216" cy="128" r="17"/><circle cx="216" cy="128" r="13.5"/></g>
+                        <g data-part="dpad_up"><path d="M121.5 121.5v-14a3 3 0 0 1 3-3h7a3 3 0 0 1 3 3v14z"/></g>
+                        <g data-part="dpad_down"><path d="M121.5 134.5v14a3 3 0 0 0 3 3h7a3 3 0 0 0 3-3v-14z"/></g>
+                        <g data-part="dpad_left"><path d="M121.5 121.5h-14a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h14z"/></g>
+                        <g data-part="dpad_right"><path d="M134.5 121.5h14a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-14z"/></g>
+                        <rect class="hub" x="121.5" y="121.5" width="13" height="13"/>
+                        <g data-part="north"><circle cx="268" cy="52" r="12.5"/></g>
+                        <g data-part="west"><circle cx="243" cy="78" r="12.5"/></g>
+                        <g data-part="east"><circle cx="293" cy="78" r="12.5"/></g>
+                        <g data-part="south"><circle cx="268" cy="104" r="12.5"/></g>
+                      </svg>
+                      <p class="note" id="pad-caption">Point at a row to see where that button is on a controller.</p>
+                      <div class="group"><h3>Start, and the page</h3>
+                        <div class="bind-row"><span class="gc">Start</span><span class="act">Pause</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="start" disabled>Enter</button><button type="button" class="binding for-pad" data-pad="start" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc"></span><span class="act">Mute / unmute</span><span class="cells"><button type="button" class="binding" data-bind="mute" disabled>\</button></span></div>
+                        <div class="bind-row"><span class="gc"></span><span class="act">The game's own settings</span><span class="cells"><kbd>F10</kbd></span></div>
+                      </div>
+                    </div>
+                    <div class="bind-col">
+                      <div class="group"><h3>R trigger and Z</h3>
+                        <div class="bind-row"><span class="gc">R</span><span class="act">Drift, hop</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="r" disabled>Shift</button><button type="button" class="binding for-pad" data-pad="r" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">Z</span><span class="act">Look behind</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="z" disabled>Q</button><button type="button" class="binding for-pad" data-pad="z" disabled>—</button></span></div>
+                      </div>
+                      <div class="group"><h3>Buttons</h3>
+                        <div class="bind-row"><span class="gc">A</span><span class="act">Accelerate; confirm</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="a" disabled>X</button><button type="button" class="binding for-pad" data-pad="a" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">B</span><span class="act">Brake, reverse; back</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="b" disabled>Z</button><button type="button" class="binding for-pad" data-pad="b" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">X</span><span class="act">Look behind</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="x" disabled>C</button><button type="button" class="binding for-pad" data-pad="x" disabled>—</button></span></div>
+                        <div class="bind-row"><span class="gc">Y</span><span class="act"></span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="y" disabled>V</button><button type="button" class="binding for-pad" data-pad="y" disabled>—</button></span></div>
+                      </div>
+                      <div class="group"><h3>C-stick</h3>
+                        <div class="bind-row"><span class="gc"></span><span class="act">Up, left, down, right</span><span class="cells"><button type="button" class="binding for-keyboard" data-bind="axis6" disabled>I</button><button type="button" class="binding for-keyboard" data-bind="axis5" disabled>J</button><button type="button" class="binding for-keyboard" data-bind="axis7" disabled>K</button><button type="button" class="binding for-keyboard" data-bind="axis4" disabled>L</button><span class="static for-pad">Right stick</span></span></div>
+                      </div>
+                    </div>
                   </div>
                   <p class="note" id="keyboard-off" hidden>The keyboard is turned off for player 1: turn it on in
                     <kbd>F10</kbd> → Controller settings.</p>
-                  <p class="note">A game controller works too. On a Mac keyboard, press <kbd>fn</kbd>+<kbd>F10</kbd>.</p>
+                  <p class="note">Presets, second bindings and other players are in <kbd>F10</kbd> (on a Mac keyboard, <kbd>fn</kbd>+<kbd>F10</kbd>).</p>
                 </div>
               </section>
               <section id="panel-saves" aria-label="Saves">
@@ -1801,8 +1887,74 @@
       Module._mkw_web_mute(liveBindings.muted ? 0 : 1);
     }
   });
+  // The drawing (#pad-art) is a controller in the usual shape, its parts named like the runtime's
+  // host buttons. A row is about one game input: a button, a direction of the control stick (axis
+  // 0-3) or C-stick (4-7), a trigger (8, 9). It lights where that input is on the pad on port 1,
+  // or, with no pad, where it is on a Switch pad. "unmapped" on L and R is the analog trigger.
+  const PAD_DEFAULT = { a: 'east', b: 'south', x: 'north', y: 'west', start: 'start', z: 'right_shoulder',
+                        l: 'unmapped', r: 'unmapped', up: 'dpad_up', down: 'dpad_down', left: 'dpad_left', right: 'dpad_right' };
+  const padPart = (input, pad) => {
+    const axis = /^axis(\d)$/.exec(input);
+    if (axis) return Number(axis[1]) < 4 ? 'left_stick' : Number(axis[1]) < 8 ? 'right_stick' : axis[1] === '8' ? 'left_trigger' : 'right_trigger';
+    const native = (pad?.buttons || PAD_DEFAULT)[input];
+    if (!native || native === 'disabled') return '';
+    if (native === 'unmapped') return input === 'l' ? 'left_trigger' : input === 'r' ? 'right_trigger' : '';
+    return native.replace(/^(left|right)_stick_(left|right|up|down)$/, '$1_stick');
+  };
+  // What the pad's own buttons are called, by family; a generic pad gets positions. The runtime
+  // names host buttons by position (south, east, ...); "unmapped" on L and R is the analog trigger.
+  const PAD_NAMES = {
+    nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X', left_shoulder: 'L', right_shoulder: 'R', left_trigger: 'ZL',
+                right_trigger: 'ZR', start: '+', back: '−', guide: 'Home' },
+    xbox: { south: 'A', east: 'B', west: 'X', north: 'Y', left_shoulder: 'LB', right_shoulder: 'RB', left_trigger: 'LT',
+            right_trigger: 'RT', start: 'Menu', back: 'View', guide: 'Xbox' },
+    playstation: { south: '✕', east: '○', west: '□', north: '△', left_shoulder: 'L1', right_shoulder: 'R1', left_trigger: 'L2',
+                   right_trigger: 'R2', start: 'Options', back: 'Create', guide: 'PS' },
+    generic: { south: 'Bottom', east: 'Right', west: 'Left', north: 'Top', left_shoulder: 'Left bumper',
+               right_shoulder: 'Right bumper', left_trigger: 'Left trigger', right_trigger: 'Right trigger', start: 'Start',
+               back: 'Select', guide: 'Home' },
+    shared: { dpad_up: 'D-pad ↑', dpad_down: 'D-pad ↓', dpad_left: 'D-pad ←', dpad_right: 'D-pad →',
+              left_stick: 'Left stick click', right_stick: 'Right stick click', left_stick_left: 'Left stick ←',
+              left_stick_right: 'Left stick →', left_stick_up: 'Left stick ↑', left_stick_down: 'Left stick ↓',
+              right_stick_left: 'Right stick ←', right_stick_right: 'Right stick →', right_stick_up: 'Right stick ↑',
+              right_stick_down: 'Right stick ↓' },
+  };
+  const padButtonName = (input, pad) => {
+    let native = pad?.buttons?.[input];
+    if (!native || native === 'disabled') return '';
+    if (native === 'unmapped') native = input === 'l' ? 'left_trigger' : input === 'r' ? 'right_trigger' : '';
+    const names = PAD_NAMES[pad.family] || PAD_NAMES.generic;
+    return names[native] || PAD_NAMES.shared[native] || '';
+  };
+  let padHover = '';
+  const drawPad = () => {
+    const editing = !!(liveBindings?.editing && liveBindings.target);
+    const lit = padPart(editing ? String(liveBindings.target).replace(/^pad_/, '') : padHover, liveBindings?.pad || null);
+    for (const part of document.querySelectorAll('#pad-art [data-part]')) part.classList.toggle('on', part.dataset.part === lit);
+    document.getElementById('pad-art').classList.toggle('editing', editing && !!lit);
+  };
+  // The row under the pointer, or holding the focus, lights its part.
+  const bindingsBlock = document.getElementById('bindings-block');
+  const rowInput = (target) => {
+    const cell = target?.closest?.('[data-bind], [data-pad]')
+      || target?.closest?.('.bind-row')?.querySelector?.('[data-bind], [data-pad]');
+    return cell ? cell.dataset.bind || cell.dataset.pad : '';
+  };
+  for (const type of ['mouseover', 'focusin']) bindingsBlock.addEventListener(type, (event) => { padHover = rowInput(event.target); drawPad(); });
+  for (const type of ['mouseleave', 'focusout']) bindingsBlock.addEventListener(type, () => { padHover = ''; drawPad(); });
+  // Which device the rows show: the keyboard, or the controller on port 1 once there is one.
+  const deviceTabs = { keyboard: document.getElementById('device-keyboard'), pad: document.getElementById('device-pad') };
+  let deviceChosen = false;
+  const setDevice = (device) => {
+    bindingsBlock.dataset.device = device;
+    for (const [name, tab] of Object.entries(deviceTabs)) tab.setAttribute('aria-pressed', String(name === device));
+  };
+  for (const [name, tab] of Object.entries(deviceTabs)) tab.addEventListener('click', () => { deviceChosen = true; setDevice(name); });
+  drawPad();
+
   window.mkwSetBindings = (json) => {
     const bindings = liveBindings = JSON.parse(json);
+    stage.classList.toggle('settings-open', !!bindings.settings);
     volumeSlider.disabled = typeof Module._mkw_web_volume !== 'function';
     muteButton.disabled = typeof Module._mkw_web_mute !== 'function';
     if (Number.isFinite(bindings.volume) && document.activeElement !== volumeSlider) {
@@ -1820,19 +1972,46 @@
       const unbound = !name || name === 'Unmapped' || name === 'Unknown';
       cell.textContent = unbound ? '—' : keyLabels[name] || name;
       cell.classList.toggle('unbound', unbound);
-      const action = cell.closest('dt')?.nextElementSibling?.textContent || id;
+      const row = cell.closest('.bind-row');
+      const action = [row?.querySelector('.gc')?.textContent, row?.querySelector('.act')?.textContent].filter(Boolean).join(': ') || id;
       cell.disabled = bindings.requests?.[id] === undefined || typeof Module._mkw_web_rebind !== 'function';
       cell.title = 'Change ' + action;
       cell.setAttribute('aria-label', 'Change ' + action + ': ' + cell.textContent);
     }
+    // The controller on port 1: a tab of its own, and what each game button is on it. It takes
+    // the rows when it first appears, unless the player has picked a tab; they go back to the
+    // keyboard when it leaves.
+    const pad = bindings.pad || null;
+    const padWasThere = !deviceTabs.pad.hidden;
+    deviceTabs.pad.hidden = !pad;
+    deviceTabs.pad.textContent = pad ? pad.name : 'Controller';
+    if (pad && !padWasThere && !deviceChosen) setDevice('pad');
+    if (!pad && bindingsBlock.dataset.device === 'pad') setDevice('keyboard');
+    document.getElementById('pad-name').textContent = pad
+      ? (bindings.keyboard ? 'Both drive player 1.' : 'The keyboard is off for player 1.')
+      : 'No controller yet: press a button on one and it becomes player 1.';
+    for (const cell of document.querySelectorAll('[data-pad]')) {
+      const id = cell.dataset.pad;
+      const name = padButtonName(id, pad);
+      cell.textContent = name || '—';
+      cell.classList.toggle('unbound', !name);
+      const row = cell.closest('.bind-row');
+      const action = [row?.querySelector('.gc')?.textContent, row?.querySelector('.act')?.textContent].filter(Boolean).join(': ') || id;
+      cell.disabled = !pad || bindings.requests?.['pad_' + id] === undefined || typeof Module._mkw_web_rebind !== 'function';
+      cell.title = 'Change ' + action;
+      cell.setAttribute('aria-label', 'Change ' + action + ': ' + cell.textContent);
+    }
+    drawPad();
     document.getElementById('binding-help').textContent = bindings.editing
-      ? 'Press a key or click a mouse button in the game. Cancel keeps the current binding.'
+      ? (String(bindings.target || '').startsWith('pad_')
+        ? 'Press a button on the controller, pull a trigger or move a stick. Cancel keeps the current binding.'
+        : 'Press a key or click a mouse button in the game. Cancel keeps the current binding.')
       : persistentStorageAvailable ? 'Click a key to change it. Changes are saved in this browser.'
       : 'Click a key to change it. Changes are lost when you reload or close this page.';
   };
-  for (const cell of document.querySelectorAll('[data-bind]')) {
+  for (const cell of document.querySelectorAll('[data-bind], [data-pad]')) {
     cell.addEventListener('click', () => {
-      const request = liveBindings?.requests?.[cell.dataset.bind];
+      const request = liveBindings?.requests?.[cell.dataset.bind || 'pad_' + cell.dataset.pad];
       if (request === undefined || typeof Module._mkw_web_rebind !== 'function') return;
       Module._mkw_web_rebind(request);
       Module.canvas.focus();
